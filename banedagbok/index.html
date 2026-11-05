@@ -47,6 +47,7 @@ header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-cont
 .brand small { font-family: var(--f-display); font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: var(--pitch); font-weight: 600 }
 .status { font-size: 13px; color: var(--muted) }
 .status b { color: var(--ink); font-weight: 600 }
+#auth .btn { padding: 4px 10px; font-size: 13px }
 
 nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line) }
 nav.tabs button { background: none; border: 0; padding: 8px 14px 10px; font-family: var(--f-display); font-size: 18px; font-weight: 600;
@@ -163,7 +164,7 @@ dialog .df .spacer { flex: 1 }
       <small id="clubName">Banedagbok</small>
       <h1 id="anleggTitle">Banedagbok</h1>
     </div>
-    <div class="status" id="status">Henter data …</div>
+    <div style="display:grid;gap:6px;justify-items:end"><div class="status" id="status">Henter data …</div><div class="status" id="auth"></div></div>
   </header>
 
   <nav class="tabs" role="tablist">
@@ -253,6 +254,7 @@ dialog .df .spacer { flex: 1 }
         </form>
         <p><a class="btn primary" id="dl-link" target="_blank" rel="noopener" href="#">Last ned Excel fra fotball.no ↗</a></p>
         <p class="note">Lenken åpner fotball.no sin Excel-eksport for anlegget med datoene over. Lagre fila og slipp den i feltet til høyre. Siden kan ikke hente fra fotball.no selv, så dette steget gjør du i nettleseren.</p>
+        <p class="note" id="autoNote" hidden>Kampene hentes automatisk fra fotball.no hver natt. Manuell import trengs bare hvis du vil oppdatere med en gang.</p>
         <p class="note">Kalender-abonnement (for telefonen): <span class="mono" id="icsUrl" style="word-break:break-all"></span></p>
       </div>
       <div class="panel" style="display:grid;gap:12px;min-width:0">
@@ -278,11 +280,11 @@ dialog .df .spacer { flex: 1 }
       <div class="panel" style="display:grid;gap:12px">
         <h2>Klubb og anlegg</h2>
         <form class="form" id="cf">
-          <label class="wide">Klubbnavn<input type="text" id="cf-klubb" placeholder="Navn på klubben"></label>
+          <label class="wide">Klubbnavn<input type="text" id="cf-klubb" class="rw" placeholder="Navn på klubben"></label>
         </form>
         <h3>Legg til anlegg</h3>
         <form class="form" id="af">
-          <label>Navn<input type="text" id="af-navn" required placeholder="f.eks. Høland idrettsanlegg"></label>
+          <label>Navn<input type="text" id="af-navn" class="rw" required placeholder="f.eks. Høland idrettsanlegg"></label>
           <label>Anleggs-ID på fotball.no<input type="text" id="af-fiks" inputmode="numeric" placeholder="tallet etter arenaId= eller fiksId="></label>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary rw" type="submit">Legg til anlegg</button></div>
         </form>
@@ -313,6 +315,12 @@ dialog .df .spacer { flex: 1 }
 </dialog>
 
 <script>
+// Supabase-oppsett. Fyll inn for å bruke en delt database (se README.md i samme mappe).
+// Begge verdiene finnes i Supabase under Project Settings → API. anon-nøkkelen er laget for å ligge i nettsider;
+// tilgangsreglene i databasen bestemmer hvem som får endre. Legg ALDRI inn service_role-nøkkelen her.
+window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "", anonKey: "" };
+</script>
+<script>
 (() => {
 "use strict";
 // ---------- helpers ----------
@@ -340,6 +348,7 @@ const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7"
 const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, anleggId: null, week: monday(new Date()),
   view: "uke", day: null, ro: false, backend: null, loaded: false, editTrain: null };
 try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; } } catch (e) {}
+let SB = null; // Supabase-klient når siden er koblet til Supabase
 const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId })); } catch (e) {} };
 
 // ---------- backends ----------
@@ -375,6 +384,54 @@ function dbBackend(db) {
     del: (col, id) => withRetry(() => db.collection(col).doc(id).delete()),
   };
 }
+function supabaseBackend(sb) {
+  const data = { config: {}, kamper: {}, treninger: {} };
+  let cb = () => {};
+  const emit = t => t === "config" ? cb({ cfg: data.config.oppsett || null }) : cb({ [t]: { ...data[t] } });
+  const fail = e => {
+    const err = new Error(e.message || "Lagring feilet");
+    err.code = (e.code === "42501" || e.code === "PGRST301" || e.status === 401 || e.status === 403) ? "not_editor" : "unavailable";
+    return err;
+  };
+  async function loadAll(t) {
+    let rows = [], from = 0;
+    for (;;) {
+      const { data: d, error } = await sb.from(t).select("id,data").order("id").range(from, from + 999);
+      if (error) throw error;
+      rows = rows.concat(d); if (d.length < 1000) return rows; from += 1000;
+    }
+  }
+  let loading = null;
+  async function reload() {
+    if (loading) return loading;
+    loading = (async () => {
+      try {
+        for (const t of ["config", "treninger", "kamper"]) { data[t] = Object.fromEntries((await loadAll(t)).map(r => [r.id, r.data])); emit(t); }
+      } catch (e) { setStatus("Får ikke kontakt med databasen (" + esc(e.message || e) + "). Prøver igjen om litt."); }
+      finally { loading = null; }
+    })();
+    return loading;
+  }
+  return {
+    name: "supabase",
+    start(onChange) {
+      cb = onChange; reload();
+      sb.channel("banedagbok").on("postgres_changes", { event: "*", schema: "public" }, p => {
+        const t = p.table; if (!data[t]) return;
+        if (p.eventType === "DELETE") delete data[t][p.old.id]; else data[t][p.new.id] = p.new.data;
+        emit(t);
+      }).subscribe();
+      setInterval(reload, 5 * 60 * 1000);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) reload(); });
+    },
+    async saveCfg(c) { const { error } = await sb.from("config").upsert({ id: "oppsett", data: c }); if (error) throw fail(error); data.config.oppsett = clone(c); emit("config"); },
+    async put(t, id, obj) { const { error } = await sb.from(t).upsert({ id, data: obj }); if (error) throw fail(error); data[t][id] = clone(obj); emit(t); },
+    async del(t, id) { const { error } = await sb.from(t).delete().eq("id", id); if (error) throw fail(error); delete data[t][id]; emit(t); },
+  };
+}
+function loadScript(src) {
+  return new Promise((ok, no) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = () => no(new Error("Kunne ikke laste " + src)); document.head.appendChild(el); });
+}
 async function withRetry(fn) {
   try { return await fn(); }
   catch (e) {
@@ -385,6 +442,7 @@ async function withRetry(fn) {
 }
 function errText(e) {
   const c = e && e.code;
+  if (c === "not_editor") return S.user ? "Du er logget inn, men er ikke redaktør. Be banekoordinator legge deg til." : "Logg inn som redaktør for å endre (øverst til høyre).";
   if (c === "invalid_argument") return "Du har ikke tilgang til å endre banedagboken. Be eieren gi deg rollen Bidragsyter.";
   if (c === "quota_exceeded") return "Lagringen er full. Slett gamle kamper (for eksempel forrige sesong) og prøv igjen.";
   if (c === "resource_exhausted") return "For mange endringer på kort tid. Vent litt og prøv igjen.";
@@ -479,8 +537,9 @@ function markConflicts(items, a) {
 function setStatus(html) { $("#status").innerHTML = html; }
 function renderStatus() {
   const nT = Object.keys(S.treninger).length, nK = Object.keys(S.kamper).length;
-  const where = S.backend?.name === "db" ? "Delt med alle som har tilgang til siden" : "Lagret bare i denne nettleseren";
-  setStatus(`<b class="num">${nK}</b> kamper/bookinger · <b class="num">${nT}</b> faste treningstider · ${where}${S.ro ? " · <b>Bare lesetilgang</b>" : ""}`);
+  const where = S.backend?.name === "supabase" ? "Kamper hentes fra fotball.no hver natt" : S.backend?.name === "db" ? "Delt med alle som har tilgang til siden" : "Lagret bare i denne nettleseren";
+  setStatus(`<b class="num">${nK}</b> kamper/bookinger · <b class="num">${nT}</b> faste treningstider · ${where}${S.ro && S.backend?.name !== "supabase" ? " · <b>Bare lesetilgang</b>" : ""}`);
+  renderAuth();
 }
 function anleggOptions(sel, withAll) {
   const v = sel.value;
@@ -597,6 +656,7 @@ function renderKampList() {
     : `<tr><td colspan="6" class="muted">${fut ? "Ingen kommende kamper. Hent kampoversikten under «Hent fra fotball.no», eller fjern haken for «Bare kommende»." : "Ingen kamper ennå."}</td></tr>`;
 }
 function renderImport() {
+  $("#autoNote").hidden = S.backend?.name !== "supabase";
   const a = anlegg($("#dl-anlegg").value);
   if (!$("#dl-fra").value) { const y = new Date().getFullYear(); const m = new Date().getMonth(); const yy = m >= 10 ? y + 1 : y; $("#dl-fra").value = `${yy}-01-01`; $("#dl-til").value = `${yy}-12-31`; }
   const link = $("#dl-link");
@@ -934,8 +994,46 @@ $("#impGo").onclick = runImport;
 
 initTrainForm(); initOppsett(); renderAll();
 
+// ---------- innlogging (bare med Supabase) ----------
+function renderAuth() {
+  const el = $("#auth"); if (!SB) { el.innerHTML = ""; return; }
+  if (!S.user) { el.innerHTML = `Bare lesetilgang · <button class="btn" id="loginBtn">Logg inn for å redigere</button>`; $("#loginBtn").onclick = openLogin; return; }
+  el.innerHTML = `${esc(S.user.email)} · ${S.ro ? "<b>ikke redaktør</b>" : "redaktør"} · <button class="btn ghost" id="logoutBtn">Logg ut</button>`;
+  $("#logoutBtn").onclick = () => SB.auth.signOut();
+}
+function openLogin() {
+  openDlg("Logg inn", `<form class="form" id="lf"><label class="wide">E-postadresse<input type="email" id="lf-epost" required autocomplete="email" placeholder="navn@eksempel.no"></label></form>
+    <p class="note">Du får en innloggingslenke på e-post. Alle kan se banedagboken, men bare de som banekoordinator har lagt inn som redaktører kan endre.</p><p id="lf-msg" class="note"></p>`,
+    `<span class="spacer"></span><button class="btn primary" id="lfGo">Send innloggingslenke</button>`);
+  const go = async () => {
+    const email = $("#lf-epost").value.trim(); if (!email || !$("#lf-epost").checkValidity()) { $("#lf-epost").focus(); return; }
+    $("#lfGo").disabled = true;
+    const { error } = await SB.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) { $("#lf-msg").innerHTML = `<span class="err">${esc(error.message)}</span>`; $("#lfGo").disabled = false; }
+    else $("#lf-msg").innerHTML = `<span class="ok">Lenken er sendt til ${esc(email)}. Åpne den på denne enheten for å logge inn.</span>`;
+  };
+  $("#lfGo").onclick = go; $("#lf").onsubmit = e => { e.preventDefault(); go(); };
+  setTimeout(() => $("#lf-epost")?.focus(), 30);
+}
+async function refreshRole(session) {
+  S.user = session?.user || null; S.ro = true;
+  if (S.user) { try { const { data, error } = await SB.rpc("er_redaktor"); S.ro = !!error || data !== true; } catch (e) { S.ro = true; } }
+  renderAll();
+}
+
 // ---------- boot ----------
 (async () => {
+  const conf = window.BANEDAGBOK_SUPABASE || {};
+  if (conf.url && conf.anonKey) {
+    try {
+      if (!window.supabase) await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js");
+      SB = window.supabase.createClient(conf.url, conf.anonKey);
+      S.ro = true; S.backend = supabaseBackend(SB);
+      SB.auth.onAuthStateChange((_ev, session) => { setTimeout(() => refreshRole(session), 0); });
+      S.backend.start(onData);
+      return;
+    } catch (e) { setStatus(`<span class="err">Kunne ikke koble til databasen: ${esc(e.message)}</span>`); return; }
+  }
   let db = null, user = null;
   try { if (window.claude && typeof window.claude.use === "function") { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } } catch (e) { db = null; }
   S.backend = db ? dbBackend(db) : localBackend();
