@@ -378,6 +378,11 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <label data-arskull>Årskull (valgfritt)<input type="text" id="lagNy-arskull" placeholder="f.eks. 2010, 2011"></label>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit">Opprett lag</button><button class="btn ghost" type="button" id="lagNy-avbryt">Avbryt</button><span class="note" id="lagNy-msg"></span></div>
         </form>
+        <details id="ukoblet" hidden><summary class="btn" style="display:inline-block">Lag på fotball.no uten kobling <span class="badge" id="ukobletN"></span></summary>
+          <div style="display:grid;gap:8px;margin-top:8px">
+            <p class="note">Lag fra klubbene som gir forslag, med hjemmekamper i år, som ikke er koblet til et lag her. Lag som bare spiller i turneringer eller borte, er ikke med. Koble til et eksisterende lag, eller opprett et nytt lag og gi det et bedre navn etterpå.</p>
+            <div class="sched" id="ukobletList"></div>
+          </div></details>
         <details id="omdop" hidden><summary class="btn" style="display:inline-block">Bytt navn på flere lag</summary>
           <div style="display:grid;gap:8px;margin-top:8px">
             <p class="note">For eksempel ved nyttår, når G10 blir G11. Skriv inn nye navn og lagre. Treninger, kamper, forespørsler, brukere og koblinger følger med. Lag kan bytte navn i kjede, så G15 → G16 og G16 → G17 går fint.</p>
@@ -909,6 +914,18 @@ const lagKlubb = t => lagkampList().find(k => k.lag === t)?.klubb || "?";
 // Klubber kan slås av som forslag (f.eks. klubber som bare er hentet for en enkelt kamp). Lag lagt til med lag-ID tas alltid med.
 const forslagKlubb = id => (S.cfg.klubber || []).find(k => k.fiksId === id)?.forslag !== false;
 const alleFotballLag = () => [...new Set(lagkampList().filter(k => k.lagId || forslagKlubb(k.klubbId)).map(k => k.lag))].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+// Lag fra klubber som gir forslag, med hjemmekamper i år, som ikke er koblet til noe lag her
+function ukobledeLag() {
+  const year = String(new Date().getFullYear()), today = ymd(new Date());
+  const koblet = new Set(Object.values(S.grupper).flatMap(g => grpTeams(g))), m = new Map();
+  for (const k of lagkampList()) {
+    if (!k.hjemme || !String(k.dato).startsWith(year) || k.lagId || !forslagKlubb(k.klubbId) || koblet.has(k.lag)) continue;
+    const r = m.get(k.lag) || { lag: k.lag, klubb: k.klubb, n: 0, neste: null, siste: null };
+    r.n++; if (k.dato >= today && (!r.neste || k.dato < r.neste)) r.neste = k.dato; if (!r.siste || k.dato > r.siste) r.siste = k.dato;
+    m.set(k.lag, r);
+  }
+  return [...m.values()].sort((x, y) => x.klubb.localeCompare(y.klubb, "nb") || x.lag.localeCompare(y.lag, "nb", { numeric: true }));
+}
 // Lag lagt til med lag-ID på fotball.no: navnet finnes først når kampene er hentet
 const teamsForId = id => [...new Set(lagkampList().filter(k => k.lagId === String(id)).map(k => k.lag))];
 const grpTeams = g => [...new Set([...(g?.fotballLag || []), ...(g?.lagIder || []).flatMap(teamsForId)])];
@@ -1753,6 +1770,15 @@ function renderLag() {
     const info = [arskullTekst(g) ? `født ${arskullTekst(g)}` : "", tr.length ? tr.join(", ") : "", ts.length || ventende ? `${ts.length + ventende} lag på fotball.no` : ""].filter(Boolean).join(" · ");
     return `<button type="button" data-grp="${esc(l)}" aria-pressed="${l === S.lagSel}"><b>${esc(l)}</b><small>${esc(info || "Ingen årskull, trenere eller kobling ennå")}</small></button>`; }).join("")
     : `<p class="note">Ingen lag ennå.${isAdmin() ? " Opprett det første med «+ Nytt lag»." : ""}</p>`;
+  // lag på fotball.no uten kobling (admin)
+  { const ul = isAdmin() ? ukobledeLag() : [], navn = alleLagNavn();
+    $("#ukoblet").hidden = !isAdmin(); $("#ukobletN").textContent = ul.length; $("#ukobletN").hidden = !ul.length;
+    if (!$("#ukoblet").open || !$("#ukobletList").dataset.busy) $("#ukobletList").innerHTML = ul.length ? ul.map(r => {
+      const tok = klasseToken(r.lag), fs = navn.filter(l => tok && klasseToken(l) === tok), rest = navn.filter(l => !fs.includes(l));
+      return `<div class="row" data-ul="${esc(r.lag)}" style="grid-template-columns:1fr"><div><b>${esc(r.lag)}</b> <span class="muted">${esc(r.klubb)} · ${r.n} hjemmekamp${r.n === 1 ? "" : "er"} i år${r.neste ? ` · neste ${fmtDate(r.neste)}` : ` · siste ${fmtDate(r.siste)}`}</span></div>
+        <div class="bar" style="gap:6px"><select aria-label="Koble ${esc(r.lag)} til lag"><option value="">Koble til lag …</option>${fs.length ? `<optgroup label="Samme årsklasse (${esc(tok)})">${fs.map(l => `<option>${esc(l)}</option>`).join("")}</optgroup>` : ""}<optgroup label="Alle lag">${rest.map(l => `<option>${esc(l)}</option>`).join("")}</optgroup></select>
+          <button class="btn" type="button" data-ulact="koble">Koble</button><button class="btn ghost" type="button" data-ulact="ny">Opprett lag</button></div></div>`; }).join("")
+      : `<p class="note">Alle lag med hjemmekamper i år er koblet.${Object.keys(S.lagkamper).length ? "" : " (Klubbenes kamper er ikke hentet ennå.)"}</p>`; }
   // bytt navn på flere lag (admin)
   $("#omdop").hidden = !isAdmin();
   if (isAdmin() && !$("#omdop").open) $("#omdopList").innerHTML = alleLagNavn().map(l => `<label class="bar" style="gap:8px"><span style="width:16ch;font-weight:600">${esc(l)}</span>→<input type="text" data-om="${esc(l)}" value="${esc(l)}" style="width:18ch" aria-label="Nytt navn for ${esc(l)}"></label>`).join("");
@@ -1853,6 +1879,23 @@ function initLag() {
     const l = S.lagSel, n = lagBruk(l).treninger.length;
     confirmBtn(b, n ? `Bekreft: slett ${l} og ${n} treninger` : `Bekreft: slett ${l}`, async () => { await deleteLag(l, true); S.lagSel = null; saveUi(); renderLag(); });
     b.click();
+  });
+  $("#ukobletList").addEventListener("click", async e => {
+    const b = e.target.closest("[data-ulact]"); if (!b) return; const row = b.closest("[data-ul]"), team = row.dataset.ul;
+    $("#ukobletList").dataset.busy = "1"; b.disabled = true;
+    try {
+      if (b.dataset.ulact === "koble") {
+        const l = row.querySelector("select").value; if (!l) { b.disabled = false; row.querySelector("select").focus(); return; }
+        await saveGroup(l, [...new Set([...(gruppe(l)?.fotballLag || []), team])]);
+      } else {
+        // nytt lag med navnet fra fotball.no, koblet med en gang
+        if (alleLagNavn().includes(team)) throw new Error(`${team} finnes allerede som lag.`);
+        const kj = (/^([GJ])\d/i.exec(team) || [])[1]?.toUpperCase() || (/^herrer/i.test(team) ? "H" : /^damer/i.test(team) ? "D" : "");
+        const c = cfgDraft(); c.lag = [...new Set([...(c.lag || []), team])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true })); await S.backend.saveCfg(c);
+        await S.backend.put("grupper", gruppeId(team), { lag: team, kjonn: kj, arskull: [], fotballLag: [team], lagIder: [] });
+      }
+    } catch (er) { b.disabled = false; row.insertAdjacentHTML("beforeend", `<span class="err">${esc(er.message && !er.code ? er.message : errText(er))}</span>`); }
+    delete $("#ukobletList").dataset.busy; renderLag();
   });
   $("#omdopGo").onclick = async () => {
     const btn = $("#omdopGo"), msg = $("#omdopMsg");

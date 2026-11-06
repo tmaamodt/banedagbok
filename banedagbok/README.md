@@ -49,6 +49,8 @@ Treningstidene bruker ofte et fellesnavn, for eksempel «G16», mens gruppen spi
 
 Hvert lag kobles til lagene sine på fotball.no.
 
+**Lag på fotball.no uten kobling (admin):** en liste med lag fra klubbene som gir forslag, som har hjemmekamper i år, men ikke er koblet til noe lag her. Lag som bare er med i turneringer eller spiller borte, er ikke med. Fra lista kan du **koble** laget til et eksisterende lag, med samme årsklasse foreslått først, eller **opprette** et nytt lag med navnet fra fotball.no. Lista er nyttig om våren, når fotball.no publiserer sesongens nye lag.
+
 - **Koble lag:** admin kan koble alle grupper, Trener+ bare sine egne lag. Siden foreslår lag med samme årsklasse, gruppert per klubb.
 - **Forslag per klubb:** i klubblista nederst krysser admin av hvilke klubber som skal gi forslag. En klubb som bare er hentet for enkelte kamper, kan slås av, så lagene dens ikke dukker opp.
 - **Lag fra andre klubber**, for eksempel samarbeidslag, legges til på gruppen med **lag-ID** fra fotball.no. ID-en står i adressen til laget (`…/lag/hjem/?fiksId=4530`). Henteskriptet henter lagets kamper hver natt. Til da vises laget som «venter på henting». Admin kan også importere lagets Excel-fil for hånd.
