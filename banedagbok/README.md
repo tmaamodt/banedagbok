@@ -15,7 +15,7 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 | Rolle | Kan |
 |---|---|
 | Besøkende (ikke innlogget) | Se ukevisning og kampliste. Merknader er skjult. |
-| Trener | Slette faste treninger, enkelttreninger, treningskamper og bookinger for egne lag, og avlyse enkeltdager. Søke om banetid. |
+| Trener | Slette faste treninger, enkelttreninger, treningskamper og bookinger for egne lag, og avlyse enkeltdager. Søke om banetid og om treningskamper. |
 | Trener+ | Alt en trener kan, og i tillegg legge inn og endre enkelttreninger og treningskamper for egne lag. Faste treningstider må søkes om. |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
 
@@ -28,7 +28,7 @@ Faste treningstider legges bare inn av admin, eller ved at admin godkjenner en f
 
 En forespørsel gjelder enten fast tid eller én dag. Trener+ søker bare om fast tid, siden enkelttreninger legges inn direkte. Både treneren og admin ser med en gang om tiden kolliderer med noe. Når admin godkjenner, blir forespørselen automatisk en treningstid, og treneren ser svaret under Forespørsler.
 
-**Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. De vises som kamper i lilla. Henteskriptet rører dem aldri.
+**Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. En trener søker om treningskamp under Forespørsler, og den legges inn når admin godkjenner. De vises som kamper i lilla. Henteskriptet rører dem aldri.
 
 Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
 
