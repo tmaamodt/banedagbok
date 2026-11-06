@@ -30,6 +30,29 @@ En forespørsel gjelder enten fast tid eller én dag. Trener+ søker bare om fas
 
 **Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. En trener søker om treningskamp under Forespørsler, og den legges inn når admin godkjenner. De vises som kamper i lilla. Henteskriptet rører dem aldri.
 
+## Planlegging
+
+Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider for en periode, på samme måte som i treningsarket.
+
+1. Velg en periode fra–til, eller bruk et hurtigvalg som «Høstsesong».
+2. Velg ukedag. Rutenettet har én rad per 30 minutter og én kolonne per kvarter (A–D) på hver bane, gruppert per anlegg. Baner uten kvarter vises som halvdeler eller hel bane.
+3. Velg et lag og mal rutene laget skal ha. Klikk og dra for flere ruter, og klikk på en rute med samme lag for å viske den ut. Velg «Partallsuker» eller «Oddetallsuker» for treninger annenhver uke.
+4. Kamper og bookinger i perioden vises med ⚽ og antall i rutene. Ruter der et lag kolliderer med kamper, får rød kant og listes i oppsummeringen.
+5. Trykk **Lagre planen**:
+   - Ruter som henger sammen blir én fast trening.
+   - Et lag med A og B samtidig får halvdelen, og et lag med alle fire kvarterene får hele banen.
+   - Bare treninger som tilhører samme plan blir erstattet. Andre faste treninger vises skravert og røres ikke.
+
+**Import fra treningsarket:** velg Excel-fila under «Importer treningsark». Importen fyller rutenettet, og du ser over hver dag og lagrer etterpå.
+
+- **Formatet:** én blokk per ukedag med kolonnene «Tid» og «BANEDEL A–D», og anleggsnavnet øverst.
+- **Sammenslåtte celler:** gir flere kvarter.
+- **«annenhver»** blir partallsuker.
+- **Lagnavn:** skrivemåter som «G 19» og «G19» slås sammen.
+- **Andre ark:** ark i et annet format, som hallen, hoppes over.
+
+Med «Kopier inn fra» kan forrige sesong brukes som utgangspunkt.
+
 Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
 
 ## Oppsett med Supabase

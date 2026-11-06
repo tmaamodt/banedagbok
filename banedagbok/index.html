@@ -136,6 +136,39 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .pitch rect.q.off { fill: transparent; stroke-dasharray: 2 2; opacity: .55 }
 .pitch.pick rect.q.off { cursor: not-allowed }
 @media (min-width: 980px) { .cols.oppsett { grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr) } }
+/* Planlegging: rutenett som i treningsarket, rader = 30 min, kolonner = kvarter per bane */
+:root { --pl: 86% }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pl: 32% } }
+:root[data-theme="dark"] { --pl: 32% }
+.plbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end }
+.plbar label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600 }
+.daytabs { display: flex; flex-wrap: wrap; gap: 4px }
+.daytabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 12px; font: 600 15px var(--f-display); color: var(--muted) }
+.daytabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+.daytabs .n { font: 500 11px var(--f-mono); margin-left: 4px; opacity: .8 }
+.palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.palette .lc { border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; font-size: 13px; font-weight: 600; color: var(--ink) }
+.palette .lc[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px }
+.plwrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); touch-action: none }
+table.pl { border-collapse: separate; border-spacing: 0; width: auto; font-size: 12px; user-select: none }
+table.pl th, table.pl td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; text-transform: none; letter-spacing: 0 }
+table.pl thead th { position: sticky; background: var(--surface); z-index: 2; padding: 4px 6px; font: 600 12px var(--f-body); color: var(--muted); text-align: center }
+table.pl thead tr:nth-child(1) th { top: 0; font: 700 14px var(--f-display); color: var(--ink) }
+table.pl thead tr:nth-child(2) th { top: 26px }
+table.pl thead tr:nth-child(3) th { top: 50px; font: 500 11px var(--f-mono) }
+table.pl th.t { position: sticky; left: 0; z-index: 3; background: var(--surface); font: 500 11px var(--f-mono); color: var(--muted); padding: 0 6px; text-align: right; white-space: nowrap }
+table.pl tbody tr.hr th.t, table.pl tbody tr.hr td { border-top: 1px solid var(--muted) }
+table.pl td.pc { width: 74px; min-width: 74px; height: 24px; cursor: crosshair; position: relative; vertical-align: top }
+table.pl td.pc.q1 { border-right: 2px solid var(--pitch) }
+table.pl td.pc.end { border-right: 3px solid var(--ink) }
+table.pl td.pc.off { background: repeating-linear-gradient(45deg, transparent 0 4px, var(--line) 4px 5px); cursor: not-allowed }
+table.pl td.pc.lock { cursor: not-allowed; opacity: .55 }
+table.pl td.pc span.lab { display: block; padding: 2px 4px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink) }
+table.pl td.pc span.wk { position: absolute; right: 2px; bottom: 1px; font: 600 9px var(--f-mono); color: var(--muted) }
+table.pl td.pc span.km { position: absolute; right: 2px; top: 1px; font: 600 9px var(--f-mono); color: var(--match) }
+table.pl td.pc.clash { box-shadow: inset 0 0 0 2px var(--conflict) }
+table.pl td.pc.clash span.km { color: var(--conflict) }
+.plsum { display: grid; gap: 6px; font-size: 14px }
 .banecard { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 12px; background: var(--surface) }
 .banecard .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
 .banecard .head input[data-bf="navn"] { font: 700 18px var(--f-display); min-width: 0; flex: 1 1 160px }
@@ -230,6 +263,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
   <nav class="tabs" role="tablist">
     <button role="tab" data-view="uke" data-for="alle" aria-selected="true">Uke</button>
     <button role="tab" data-view="treninger" data-for="trener" aria-selected="false">Treningstider</button>
+    <button role="tab" data-view="plan" data-for="admin" aria-selected="false">Planlegging</button>
     <button role="tab" data-view="foresporsler" data-for="trener" aria-selected="false">Forespørsler<span class="badge" id="reqBadge" hidden></span></button>
     <button role="tab" data-view="kamper" data-for="alle" aria-selected="false">Kamper og bookinger</button>
     <button role="tab" data-view="brukere" data-for="admin" aria-selected="false">Brukere</button>
@@ -286,6 +320,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <label>Til<input type="time" id="tf-til" required value="19:00" step="300"></label>
           <label data-tt="fast">Periode fra<input type="date" id="tf-fom"></label>
           <label data-tt="fast">Periode til<input type="date" id="tf-tom"></label>
+          <label data-tt="fast">Uker<select id="tf-uker"><option value="">Hver uke</option><option value="partall">Annenhver: partallsuker</option><option value="oddetall">Annenhver: oddetallsuker</option></select></label>
           <div data-tt="fast" class="seg" style="grid-column:1/-1" role="group" aria-label="Velg periode" data-preset-for="tf"></div>
           <label class="wide">Merknad<input type="text" id="tf-merk" placeholder="Trener, utstyr …"></label>
           <div id="tf-coll" class="note wide" style="grid-column:1/-1"></div>
@@ -302,6 +337,33 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <p class="note">Faste treninger gjentas hver uke i perioden, og stopper av seg selv når perioden er over. Enkelttreninger vises bare til datoen er passert. Klikk på en trening for å avlyse en dag, endre eller slette.</p>
       </div>
     </div>
+  </section>
+
+  <!-- PLANLEGGING -->
+  <section id="v-plan" hidden style="display:grid;gap:14px">
+    <div class="panel" style="display:grid;gap:12px">
+      <div class="bar"><h2>Treningsplan for en periode</h2><span class="spacer"></span><span class="note" id="plState"></span></div>
+      <form class="plbar" id="pl" onsubmit="return false">
+        <label>Periode fra<input type="date" id="pl-fom"></label>
+        <label>Periode til<input type="date" id="pl-tom"></label>
+        <div data-preset-for="pl" class="seg" role="group" aria-label="Velg periode"></div>
+        <label>Eksisterende planer<select id="pl-plans"></select></label>
+        <label>Kopier inn fra<select id="pl-copy"></select></label>
+        <label>Importer treningsark (Excel)<input type="file" id="pl-file" accept=".xlsx,.xls"></label>
+      </form>
+      <p class="note">Velg periode, mal inn lagene i rutenettet og lagre. Hver rute er 30 minutter på ett kvarter av banen. Ruter som henger sammen blir én fast trening, og et lag som har både A og B samtidig får halvdelen. Planen erstatter bare treninger som er laget i den samme planen. Andre faste treninger vises skravert og røres ikke.</p>
+      <div id="plReport" class="note"></div>
+    </div>
+    <div class="panel" style="display:grid;gap:10px;min-width:0">
+      <div class="bar" style="align-items:flex-start">
+        <div class="daytabs" id="plDays" role="group" aria-label="Ukedag"></div><span class="spacer"></span>
+        <label class="note">Fra kl. <select id="pl-from"></select></label><label class="note">til <select id="pl-to"></select></label>
+      </div>
+      <div class="palette" id="plPal"></div>
+      <div class="plwrap"><table class="pl" id="plGrid"></table></div>
+      <div class="bar"><button class="btn primary" id="plSave">Lagre planen</button><button class="btn ghost" id="plReset">Forkast endringer</button><span id="plMsg" class="note"></span></div>
+    </div>
+    <div class="panel plsum" id="plSum"></div>
   </section>
 
   <!-- FORESPØRSLER -->
@@ -729,7 +791,7 @@ function occurrences(weekStart, aId, bId) {
     if (t.anleggId !== aId || !onBane(t.delbaneId)) continue;
     let date;
     if (isEnkelt(t)) { if (!days.includes(t.dato)) continue; date = t.dato; }
-    else { date = days[(+t.ukedag) - 1]; if (!date || date < t.fom || date > t.tom) continue; }
+    else { date = days[(+t.ukedag) - 1]; if (!date || date < t.fom || date > t.tom || !weekMatches(t, date)) continue; }
     const s = toMin(t.fra), e = toMin(t.til); if (s == null || e == null) continue;
     out.push({ type: "trening", enkelt: isEnkelt(t), id, date, start: s, end: e, del: t.delbaneId, avlyst: (t.avlyst || []).includes(date),
       label: t.lag, sub: [isEnkelt(t) ? "Enkelttrening" : "", showMerknad() ? (t.merknad || "") : ""].filter(Boolean).join(" · "), src: t });
@@ -754,6 +816,8 @@ function occurrences(weekStart, aId, bId) {
   return out;
 }
 function zoneOf(a, delId) { const d = delbane(a, delId); return d ? [d.start, d.start + d.bredde] : [0, 12]; }
+// Annenhver uke: partalls- eller oddetallsuker (ISO-ukenummer)
+const weekMatches = (t, date) => !t.uker || (isoWeek(parseYmd(date)) % 2 === 0) === (t.uker === "partall");
 // Datoene en forespørsel eller treningstid gjelder: [{date, start, end}]
 function requestDates(r) {
   const start = toMin(r.fra), end = toMin(r.til); if (start == null || end == null || end <= start) return [];
@@ -761,7 +825,7 @@ function requestDates(r) {
   if (!r.fom || !r.tom || !r.ukedag) return [];
   const out = []; let d = parseYmd(r.fom); const last = parseYmd(r.tom);
   while ((d.getDay() + 6) % 7 !== (+r.ukedag) - 1) d = addDays(d, 1);
-  for (; d <= last && out.length < 80; d = addDays(d, 7)) out.push({ date: ymd(d), start, end });
+  for (; d <= last && out.length < 80; d = addDays(d, 7)) if (weekMatches(r, ymd(d))) out.push({ date: ymd(d), start, end });
   return out;
 }
 // Hva kolliderer en ønsket tid med? Returnerer [{date, it}]
@@ -995,7 +1059,7 @@ function weekActivity(aId, year, bId) {
   for (const t of Object.values(S.treninger)) {
     if (t.anleggId !== aId || (bId && baneOf(anlegg(aId), t.delbaneId)?.id !== bId)) continue;
     if (isEnkelt(t)) { const r = res.get(ymd(monday(parseYmd(t.dato)))); if (r) r.t++; continue; }
-    for (const [key, r] of res) { const date = ymd(addDays(parseYmd(key), (+t.ukedag) - 1)); if (date >= t.fom && date <= t.tom && !(t.avlyst || []).includes(date)) r.t++; }
+    for (const [key, r] of res) { const date = ymd(addDays(parseYmd(key), (+t.ukedag) - 1)); if (date >= t.fom && date <= t.tom && weekMatches(t, date) && !(t.avlyst || []).includes(date)) r.t++; }
   }
   return res;
 }
@@ -1021,7 +1085,7 @@ function renderTrainList() {
     .sort(([, x], [, y]) => (isEnkelt(x) - isEnkelt(y)) || (isEnkelt(x) ? (x.dato + x.fra).localeCompare(y.dato + y.fra) : (wd(x) - wd(y)) || (toMin(x.fra) - toMin(y.fra))));
   $("#tList").innerHTML = rows.length ? rows.map(([id, t]) => { const a = anlegg(t.anleggId); const d = delbane(a, t.delbaneId);
     return `<tr class="click" data-tid="${esc(id)}"><td>${DAGER[wd(t) - 1]}</td><td class="num">${esc(t.fra)}–${esc(t.til)}</td><td><b>${esc(t.lag)}</b>${t.merknad && showMerknad() ? `<br><span class="muted">${esc(t.merknad)}</span>` : ""}</td>
-      <td>${esc(delLabel(a, t.delbaneId))}<br><span class="muted">${esc(a?.navn || "")}</span></td><td class="num">${isEnkelt(t) ? `<span class="pill enkelt">Enkelttrening</span><br>${fmtDate(t.dato)}` : `${fmtDate(t.fom)} – ${fmtDate(t.tom)} ${t.tom.slice(0, 4)}${(t.avlyst || []).length ? `<br><span class="muted">${t.avlyst.length} avlyst</span>` : ""}`}</td></tr>`; }).join("")
+      <td>${esc(delLabel(a, t.delbaneId))}<br><span class="muted">${esc(a?.navn || "")}</span></td><td class="num">${isEnkelt(t) ? `<span class="pill enkelt">Enkelttrening</span><br>${fmtDate(t.dato)}` : `${fmtDate(t.fom)} – ${fmtDate(t.tom)} ${t.tom.slice(0, 4)}${t.uker ? `<br><span class="muted">annenhver uke (${t.uker})</span>` : ""}${(t.avlyst || []).length ? `<br><span class="muted">${t.avlyst.length} avlyst</span>` : ""}`}</td></tr>`; }).join("")
     : `<tr><td colspan="5" class="muted">${mine ? "Ingen faste treningstider for lagene dine ennå." : "Ingen faste treningstider ennå."}${canCreateTraining("enkelt") ? " Fyll inn skjemaet for å legge inn den første." : canRequest() ? " Send en forespørsel for å få tid." : ""}</td></tr>`;
 }
 function renderKampList() {
@@ -1110,7 +1174,7 @@ function showTraining(id, date) {
   const avl = date ? (t.avlyst || []).includes(date) : false;
   const canDel = canDeleteTraining(t), canEd = canEditTraining(t);
   const enk = isEnkelt(t);
-  openDlg(t.lag, `<dl class="kv"><dt>${enk ? "Enkelttrening" : "Fast trening"}</dt><dd class="num">${enk ? `${fmtDate(t.dato)} ${t.dato.slice(0, 4)}, ` : `Hver ${DAGER[t.ukedag - 1]} `}${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(delLabel(a, t.delbaneId))}, ${esc(a?.navn || "")}</span></span></dd>
+  openDlg(t.lag, `<dl class="kv"><dt>${enk ? "Enkelttrening" : "Fast trening"}</dt><dd class="num">${enk ? `${fmtDate(t.dato)} ${t.dato.slice(0, 4)}, ` : `${t.uker ? "Annenhver " : "Hver "}${DAGER[t.ukedag - 1]} ${t.uker ? `(${t.uker}suker) ` : ""}`}${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(delLabel(a, t.delbaneId))}, ${esc(a?.navn || "")}</span></span></dd>
     ${enk ? "" : `<dt>Periode</dt><dd class="num">${fmtDate(t.fom)} ${t.fom.slice(0, 4)} – ${fmtDate(t.tom)} ${t.tom.slice(0, 4)}</dd>`}${t.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(t.merknad)}</dd>` : ""}
     ${(t.avlyst || []).length && showMerknad() ? `<dt>Avlyst</dt><dd class="num">${t.avlyst.map(fmtDate).join(", ")}</dd>` : ""}
     ${date && !enk ? `<dt>Denne gangen</dt><dd>${fmtDate(date)}${avl ? ' <span class="err">avlyst</span>' : ""}</dd>` : ""}</dl>
@@ -1258,7 +1322,11 @@ function trainFromForm() {
   const lag = (rolle() === "trener_pluss" ? $("#tf-lagsel").value : $("#tf-lag").value).trim(), type = $("#tf-type").value || "enkelt";
   const t = { type, lag, anleggId: $("#tf-anlegg").value, delbaneId: $("#tf-del").value, fra: $("#tf-fra").value, til: $("#tf-til").value, merknad: $("#tf-merk").value.trim() };
   if (type === "enkelt") t.dato = $("#tf-dato").value;
-  else Object.assign(t, { ukedag: +$("#tf-dag").value, fom: $("#tf-fom").value, tom: $("#tf-tom").value, avlyst: S.editTrain ? (S.treninger[S.editTrain]?.avlyst || []) : [] });
+  else {
+    Object.assign(t, { ukedag: +$("#tf-dag").value, fom: $("#tf-fom").value, tom: $("#tf-tom").value, avlyst: S.editTrain ? (S.treninger[S.editTrain]?.avlyst || []) : [] });
+    if ($("#tf-uker").value) t.uker = $("#tf-uker").value;
+    const plan = S.editTrain && S.treninger[S.editTrain]?.plan; if (plan) t.plan = plan;
+  }
   return t;
 }
 function syncTrainType() { const v = $("#tf-type").value; $$("#tf [data-tt]").forEach(el => { el.hidden = el.dataset.tt !== v; }); }
@@ -1279,7 +1347,7 @@ function editTraining(id) {
   $("#tfTitle").textContent = "Rediger treningstid"; $("#tf-save").textContent = "Lagre endringer"; $("#tf-cancel").hidden = false;
   $("#tf-lag").value = t.lag; if (rolle() === "trener_pluss") $("#tf-lagsel").value = t.lag; $("#tf-anlegg").value = t.anleggId; delOptions($("#tf-del"), anlegg(t.anleggId), t.delbaneId);
   $("#tf-type").value = isEnkelt(t) ? "enkelt" : "fast"; syncTrainType();
-  if (isEnkelt(t)) $("#tf-dato").value = t.dato; else { $("#tf-dag").value = t.ukedag; $("#tf-fom").value = t.fom; $("#tf-tom").value = t.tom; }
+  if (isEnkelt(t)) $("#tf-dato").value = t.dato; else { $("#tf-dag").value = t.ukedag; $("#tf-fom").value = t.fom; $("#tf-tom").value = t.tom; $("#tf-uker").value = t.uker || ""; }
   $("#tf-fra").value = t.fra; $("#tf-til").value = t.til; $("#tf-merk").value = t.merknad || "";
   let del = $("#tf-delete"); if (!del) { del = document.createElement("button"); del.type = "button"; del.className = "btn danger"; del.id = "tf-delete"; del.textContent = "Slett treningstid"; $("#tf-cancel").after(del);
     confirmBtn(del, "Bekreft sletting", async () => { await S.backend.del("treninger", S.editTrain); stopEdit(); $("#tf-msg").innerHTML = `<span class="ok">Treningstiden er slettet.</span>`; }); }
@@ -1476,6 +1544,300 @@ function initUsers() {
     const b = e.target.closest("[data-lagdel]"); if (!b) return; const navn = b.dataset.lagdel;
     const c = cfgDraft(); c.lag = (c.lag || []).filter(l => l !== navn); await S.backend.saveCfg(c).catch(er => setStatus(esc(errText(er))));
   });
+}
+
+// ---------- planlegging ----------
+// En plan er faste treninger for én periode, merket med plan = "fom_tom". Rutenettet holder én verdi per
+// rute: nøkkel "anlegg|bane|ukedag|kolonnestart|minutt" → {lag, uker}. Kolonner er kvarter (eller halvdeler/hel
+// for baner uten kvarter). Ved lagring slås ruter sammen til så store deler av banen som finnes, og
+// sammenhengende tider til én trening.
+const SLOT = 30;
+const P = { key: null, fom: "", tom: "", day: 1, lag: null, uker: "", erase: false, cells: {}, orig: {}, dirty: false, from: 16 * 60, to: 22 * 60, painting: false, mode: null, extraLag: [] };
+const planKey = (fom, tom) => `${fom}_${tom}`;
+const lagHue = l => { let h = 0; for (const c of String(l)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const lagStyle = l => `background:hsl(${lagHue(l)} 55% var(--pl))`;
+function planColumns() {
+  // kolonner per anlegg og bane: kvarter hvis banen har kvarter, ellers halvdeler, ellers hel
+  const cols = [];
+  for (const a of S.cfg.anlegg) for (const b of a.baner) {
+    const parts = partsOf(a, b.id); if (!parts.length) continue;
+    const qs = parts.filter(d => d.bredde === 3), hs = parts.filter(d => d.bredde === 6);
+    const unit = qs.length ? 3 : hs.length ? 6 : 12;
+    for (let zs = 0; zs < 12; zs += unit) {
+      const on = parts.some(d => d.start <= zs && d.start + d.bredde >= zs + unit && d.bredde === unit) || unit === 12;
+      const name = (partsOf(a, b.id, true).find(d => d.start === zs && d.bredde === unit)?.navn || "").replace(/^(7er|9er|Kvart|Halvdel)\s*/i, "") || "Hel";
+      cols.push({ a, b, zs, unit, on, name, last: zs + unit >= 12 });
+    }
+  }
+  return cols;
+}
+const cellKey = (aId, bId, day, zs, m) => `${aId}|${bId}|${day}|${zs}|${m}`;
+// Treninger → ruter
+function trainingCells(t, cols) {
+  const a = anlegg(t.anleggId), d = delbane(a, t.delbaneId); if (!a || !d) return [];
+  const s0 = toMin(t.fra), s1 = toMin(t.til); if (s0 == null || s1 == null) return [];
+  const out = [];
+  for (const c of cols) if (c.a.id === a.id && c.b.id === d.baneId && c.zs >= d.start && c.zs + c.unit <= d.start + d.bredde)
+    for (let m = Math.floor(s0 / SLOT) * SLOT; m < s1; m += SLOT) out.push(cellKey(a.id, d.baneId, +t.ukedag, c.zs, m));
+  return out;
+}
+function loadPlan(fom, tom) {
+  P.fom = fom; P.tom = tom; P.key = planKey(fom, tom); P.cells = {}; P.dirty = false; P.extraLag = [];
+  const cols = planColumns();
+  for (const t of Object.values(S.treninger)) if (t.plan === P.key) for (const k of trainingCells(t, cols)) P.cells[k] = { lag: t.lag, uker: t.uker || "" };
+  P.orig = clone(P.cells);
+  const ms = Object.keys(P.cells).map(k => +k.split("|")[4]);
+
+}
+// Faste treninger i perioden som ikke hører til planen: vises skravert
+function lockedCells(cols) {
+  const out = {};
+  for (const t of Object.values(S.treninger)) {
+    if (isEnkelt(t) || t.plan === P.key || !t.fom || t.tom < P.fom || t.fom > P.tom) continue;
+    for (const k of trainingCells(t, cols)) out[k] = t;
+  }
+  return out;
+}
+// Kamper og bookinger i perioden på samme ukedag, tid og del av banen
+function matchCells(cols) {
+  const out = {};
+  for (const k of Object.values(S.kamper)) {
+    if (!k.dato || k.dato < P.fom || k.dato > P.tom) continue;
+    const a = anlegg(k.anleggId), d = delbane(a, k.delbaneId); if (!a || !d) continue;
+    const day = (parseYmd(k.dato).getDay() + 6) % 7 + 1, s0 = toMin(k.tid), s1 = s0 + kampVarighet(k); if (s0 == null) continue;
+    for (const c of cols) {
+      if (c.a.id !== a.id || c.b.id !== d.baneId || c.zs + c.unit <= d.start || c.zs >= d.start + d.bredde) continue;
+      for (let m = Math.floor(s0 / SLOT) * SLOT; m < s1; m += SLOT) { const key = cellKey(a.id, d.baneId, day, c.zs, m); (out[key] ||= []).push(k); }
+    }
+  }
+  return out;
+}
+// Ruter → treninger
+function planTrainings() {
+  const groups = {}; // anlegg|bane|dag|minutt|lag|uker → sett av kolonnestarter
+  for (const [k, v] of Object.entries(P.cells)) {
+    const [aId, bId, day, zs, m] = k.split("|");
+    (groups[[aId, bId, day, m, v.lag, v.uker].join("|")] ||= new Set()).add(+zs);
+  }
+  const pieces = {}; // anlegg|dag|lag|uker|delbane → minutter
+  for (const [g, set] of Object.entries(groups)) {
+    const [aId, bId, day, m, lag, uker] = g.split("|"); const a = anlegg(aId); if (!a) continue;
+    const cols = planColumns().filter(c => c.a.id === aId && c.b.id === bId);
+    const unit = cols[0]?.unit || 3;
+    const covered = new Set([...set].flatMap(zs => [...Array(unit / 3)].map((_, i) => zs + i * 3)));
+    for (const d of partsOf(a, bId).sort((x, y) => y.bredde - x.bredde)) {
+      const qs = [...Array(d.bredde / 3)].map((_, i) => d.start + i * 3);
+      if (qs.every(q => covered.has(q))) { qs.forEach(q => covered.delete(q)); (pieces[[aId, day, lag, uker, d.id].join("|")] ||= []).push(+m); }
+    }
+  }
+  const out = [];
+  for (const [g, ms] of Object.entries(pieces)) {
+    const [aId, day, lag, uker, delId] = g.split("|"); ms.sort((x, y) => x - y);
+    let st = ms[0], prev = ms[0];
+    for (const m of [...ms.slice(1), null]) {
+      if (m === prev + SLOT) { prev = m; continue; }
+      const t = { type: "fast", lag, anleggId: aId, delbaneId: delId, ukedag: +day, fra: fromMin(st), til: fromMin(prev + SLOT), fom: P.fom, tom: P.tom, merknad: "", avlyst: [], plan: P.key };
+      if (uker) t.uker = uker;
+      out.push(t); st = prev = m;
+    }
+  }
+  return out;
+}
+const sig = t => [t.lag, t.anleggId, t.delbaneId, t.ukedag, t.fra, t.til, t.uker || ""].join("|");
+function renderPlanState() {
+  const desired = planTrainings(), existing = Object.entries(S.treninger).filter(([, t]) => t.plan === P.key);
+  const want = new Set(desired.map(sig)), have = new Set(existing.map(([, t]) => sig(t)));
+  const add = desired.filter(t => !have.has(sig(t))).length, del = existing.filter(([, t]) => !want.has(sig(t))).length;
+  $("#plState").innerHTML = P.dirty || add || del ? `<b>Ikke lagret:</b> ${add} nye og ${del} fjernede treninger` : existing.length ? `Lagret · ${existing.length} faste treninger i planen` : "Ingen treninger i denne planen ennå";
+  $("#plSave").disabled = !(add || del);
+  return desired;
+}
+function renderPlan() {
+  if (!isAdmin()) return;
+  if (!P.key) { const pr = periodPresets()[3]; $("#pl-fom").value ||= pr[1]; $("#pl-tom").value ||= pr[2]; loadPlan($("#pl-fom").value, $("#pl-tom").value); }
+  const cols = planColumns(), locked = lockedCells(cols), matches = matchCells(cols);
+  // planer som finnes
+  const keys = [...new Set(Object.values(S.treninger).map(t => t.plan).filter(Boolean))].sort();
+  const lbl = k => { const [a, b] = k.split("_"); return `${fmtDate(a)} ${a.slice(0, 4)} – ${fmtDate(b)} ${b.slice(0, 4)}`; };
+  $("#pl-plans").innerHTML = `<option value="">${keys.length ? "Velg …" : "Ingen ennå"}</option>` + keys.map(k => `<option value="${k}"${k === P.key ? " selected" : ""}>${lbl(k)}</option>`).join("");
+  $("#pl-copy").innerHTML = `<option value="">Velg plan …</option>` + keys.filter(k => k !== P.key).map(k => `<option value="${k}">${lbl(k)}</option>`).join("");
+  // dager
+  const perDay = d => new Set(Object.entries(P.cells).filter(([k]) => +k.split("|")[2] === d).map(([, v]) => v.lag)).size;
+  $("#plDays").innerHTML = DAGER.map((n, i) => `<button type="button" data-day="${i + 1}" aria-pressed="${P.day === i + 1}">${n.slice(0, 3)}<span class="n">${perDay(i + 1) || ""}</span></button>`).join("");
+  // tidsrom
+  const hrs = [...Array(17)].map((_, i) => (7 + i) * 60);
+  $("#pl-from").innerHTML = hrs.map(m => `<option value="${m}"${m === P.from ? " selected" : ""}>${fromMin(m)}</option>`).join("");
+  $("#pl-to").innerHTML = hrs.map(m => m + 60).map(m => `<option value="${m}"${m === P.to ? " selected" : ""}>${fromMin(m % 1440 === 0 ? 1439 : m)}</option>`).join("");
+  // palett
+  const used = new Set(Object.values(P.cells).map(v => v.lag));
+  const lagAll = [...new Set([...(S.cfg.lag || []), ...used, ...P.extraLag])].sort((x, y) => x.localeCompare(y, "nb"));
+  if (!P.lag && lagAll.length) P.lag = lagAll[0];
+  $("#plPal").innerHTML = `<span class="note">Mal med:</span>${lagAll.map(l => `<button type="button" class="lc" data-lag="${esc(l)}" style="${lagStyle(l)}" aria-pressed="${!P.erase && P.lag === l}">${esc(l)}</button>`).join("")}
+    <input type="text" id="pl-newlag" placeholder="Nytt lag" style="width:12ch" aria-label="Nytt lag"><button type="button" class="btn" id="pl-addlag">Legg til</button>
+    <button type="button" class="lc" id="pl-erase" aria-pressed="${P.erase}">Viskelær</button>
+    <select id="pl-uker" aria-label="Uker"><option value=""${P.uker === "" ? " selected" : ""}>Hver uke</option><option value="partall"${P.uker === "partall" ? " selected" : ""}>Partallsuker</option><option value="oddetall"${P.uker === "oddetall" ? " selected" : ""}>Oddetallsuker</option></select>`;
+  // rutenett
+  const byA = []; for (const c of cols) { const g = byA[byA.length - 1]; if (g && g.a === c.a) g.n++; else byA.push({ a: c.a, n: 1 }); }
+  const byB = []; for (const c of cols) { const g = byB[byB.length - 1]; if (g && g.b === c.b) g.n++; else byB.push({ b: c.b, n: 1 }); }
+  let h = `<thead><tr><th class="t"></th>${byA.map(g => `<th colspan="${g.n}">${esc(g.a.navn)}</th>`).join("")}</tr>
+    <tr><th class="t"></th>${byB.map(g => `<th colspan="${g.n}">${esc(g.b.navn)}</th>`).join("")}</tr>
+    <tr><th class="t">${DAGER[P.day - 1]}</th>${cols.map(c => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>`;
+  const onDay = [...Object.keys(P.cells), ...Object.keys(locked)].filter(k => +k.split("|")[2] === P.day).map(k => +k.split("|")[4]);
+  const dFrom = Math.min(P.from, ...onDay), dTo = Math.max(P.to, ...onDay.map(m => m + SLOT));
+  for (let m = dFrom; m < dTo; m += SLOT) {
+    h += `<tr class="${m % 90 === 0 ? "hr" : ""}"><th class="t">${fromMin(m)}</th>`;
+    for (const c of cols) {
+      const k = cellKey(c.a.id, c.b.id, P.day, c.zs, m), v = P.cells[k], lk = locked[k], mt = matches[k] || [];
+      const above = P.cells[cellKey(c.a.id, c.b.id, P.day, c.zs, m - SLOT)];
+      const cls = ["pc", c.zs + c.unit === 6 && c.unit === 3 ? "q1" : "", c.last ? "end" : "", !c.on ? "off" : "", lk && !v ? "lock" : "", v && mt.length ? "clash" : ""].filter(Boolean).join(" ");
+      const tip = [v ? `${v.lag}${v.uker ? " (" + v.uker + "suker)" : ""}` : lk ? `${lk.lag}: fast trening utenfor planen (${fmtDate(lk.fom)}–${fmtDate(lk.tom)})` : "",
+        mt.length ? `${mt.length} kamper/bookinger i perioden: ` + mt.slice(0, 4).map(x => `${fmtDate(x.dato)} ${x.tid} ${x.kilde === "manuell" ? x.tittel : (x.hjemmelag || "").trim() + "–" + (x.bortelag || "").trim()}`).join("; ") : ""].filter(Boolean).join("\n");
+      h += `<td class="${cls}" data-k="${k}"${v ? ` style="${lagStyle(v.lag)}"` : lk ? ` style="${lagStyle(lk.lag)}"` : ""}${tip ? ` title="${esc(tip)}"` : ""}>`
+        + (v && (!above || above.lag !== v.lag || above.uker !== v.uker) ? `<span class="lab">${esc(v.lag)}</span>` : !v && lk ? `<span class="lab">${esc(lk.lag)}</span>` : "")
+        + (v?.uker ? `<span class="wk">${v.uker === "partall" ? "P" : "O"}</span>` : "") + (mt.length ? `<span class="km">⚽${mt.length}</span>` : "") + `</td>`;
+    }
+    h += `</tr>`;
+  }
+  $("#plGrid").innerHTML = h + `</tbody>`;
+  // oppsummering
+  const desired = renderPlanState();
+  const clashes = [];
+  for (const t of desired) { const hits = collisions(t, null).filter(x => x.it.type !== "trening" && x.it.type !== "foresp"); if (hits.length) clashes.push([t, hits]); }
+  const perLag = {}; for (const t of desired) perLag[t.lag] = (perLag[t.lag] || 0) + 1;
+  $("#plSum").innerHTML = `<h3>Oppsummering for ${esc(lbl(P.key))}</h3>
+    <div>${desired.length} faste treninger per uke for ${Object.keys(perLag).length} lag.${Object.keys(perLag).length ? " " + Object.entries(perLag).sort().map(([l, n]) => `<span class="chip" style="${lagStyle(l)};padding-right:10px">${esc(l)} · ${n}</span>`).join(" ") : ""}</div>
+    ${clashes.length ? `<div><span class="err">Kolliderer med kamper eller bookinger i perioden:</span><ul>${clashes.slice(0, 30).map(([t, hits]) => `<li>${esc(t.lag)}, ${DAGER[t.ukedag - 1]} ${t.fra}–${t.til} (${esc(delLabel(anlegg(t.anleggId), t.delbaneId))}): ${hits.length === 1 ? "1 gang" : hits.length + " ganger"}, f.eks. ${hits.slice(0, 3).map(x => `${fmtDate(x.date)} ${esc(x.it.label)}`).join("; ")}</li>`).join("")}</ul></div>` : desired.length ? `<div class="ok">Ingen kollisjoner med kamper i perioden.</div>` : ""}`;
+}
+function paintCell(td) {
+  const k = td.dataset.k; if (!k || td.classList.contains("off")) return;
+  if (P.mode === "erase") { if (!P.cells[k]) return; delete P.cells[k]; }
+  else { if (!P.lag) return; const v = P.cells[k]; if (v && v.lag === P.lag && v.uker === P.uker) return; P.cells[k] = { lag: P.lag, uker: P.uker }; }
+  P.dirty = true;
+  const v = P.cells[k]; td.style.cssText = v ? lagStyle(v.lag) : "";
+  td.innerHTML = (v ? `<span class="lab">${esc(v.lag)}</span>` : "") + (v?.uker ? `<span class="wk">${v.uker === "partall" ? "P" : "O"}</span>` : "") + (td.querySelector(".km")?.outerHTML || "");
+}
+// Import fra treningsarket: blokker med «Tid» + «BANEDEL A–D», ukedag over, anleggsnavn øverst. Sammenslåtte celler = flere kvarter.
+function importTreningsark(wb) {
+  const DAYS = { mandag: 1, tirsdag: 2, onsdag: 3, torsdag: 4, fredag: 5, lørdag: 6, søndag: 7 };
+  const found = [], ignored = [], unknownA = new Set();
+  const norm = v => String(v ?? "").replace(/\s+/g, " ").trim();
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name]; const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+    const merges = ws["!merges"] || [];
+    const span = (r, c) => { const m = merges.find(x => x.s.r === r && x.s.c === c); return m ? m.e.c - m.s.c + 1 : 1; };
+    let groups = 0;
+    for (let r = 0; r < rows.length; r++) for (let c = 1; c < (rows[r] || []).length; c++) {
+      if (!/^banedel\s*a$/i.test(norm(rows[r][c])) || !/^tid$/i.test(norm(rows[r][c - 1]))) continue;
+      groups++;
+      const cols = [0, 1, 2, 3].filter(i => /^banedel\s*[a-d]$/i.test(norm(rows[r][c + i])));
+      const anleggNavn = norm((rows[0] || []).slice(c - 1, c + 4).find(v => norm(v) && !/^versjon/i.test(norm(v))));
+      let day = null; for (let rr = r - 1; rr >= 0 && rr >= r - 3 && !day; rr--) for (const v of (rows[rr] || []).slice(c - 1, c + 4)) { const d = DAYS[norm(v).toLowerCase()]; if (d) { day = d; break; } }
+      const a = S.cfg.anlegg.find(x => { const n1 = x.navn.toLowerCase(), n2 = anleggNavn.toLowerCase(); return n2 && (n1.includes(n2) || n2.includes(n1.split(" ")[0])); });
+      if (!a) { unknownA.add(anleggNavn || "(uten navn)"); continue; }
+      const b = linkedBane(a);
+      for (let rr = r + 1; rr < rows.length; rr++) {
+        const tm = /(\d{1,2})[.:](\d{2})\s*[-–]\s*(\d{1,2})[.:](\d{2})/.exec(norm(rows[rr][c - 1])); if (!tm) break;
+        const s0 = +tm[1] * 60 + +tm[2], s1 = +tm[3] * 60 + +tm[4];
+        for (const i of cols) {
+          let lag = norm(rows[rr][c + i]); if (!lag) continue;
+          let uker = ""; if (/annenhver/i.test(lag)) { uker = "partall"; lag = norm(lag.replace(/annenhver/i, "")); }
+          lag = lag.replace(/^([GJMK])\s+(\d)/i, "$1$2").replace(/\s*\/\s*/g, "/");
+          const w = Math.min(span(rr, c + i), 4 - i);
+          found.push({ a, b, day, s0, s1, qs: [...Array(w)].map((_, j) => (i + j) * 3), lag, uker });
+        }
+      }
+    }
+    if (!groups) ignored.push(name);
+  }
+  return { found, ignored, unknownA: [...unknownA] };
+}
+function initPlan() {
+  const open = () => {
+    const fom = $("#pl-fom").value, tom = $("#pl-tom").value; if (!fom || !tom || tom < fom) return;
+    if (planKey(fom, tom) === P.key) return;
+    if (P.dirty && !$("#plReset").dataset.armed) { $("#plMsg").innerHTML = `<span class="err">Planen har endringer som ikke er lagret. Lagre eller trykk «Forkast endringer» først.</span>`; $("#pl-fom").value = P.fom; $("#pl-tom").value = P.tom; return; }
+    loadPlan(fom, tom); $("#plReport").innerHTML = ""; $("#plMsg").textContent = ""; renderPlan();
+  };
+  $("#pl").addEventListener("change", e => { if (e.target.id === "pl-fom" || e.target.id === "pl-tom" || e.target.closest("[data-preset-for]")) open(); });
+  $("#pl").addEventListener("click", e => { if (e.target.closest("[data-preset-for] button")) setTimeout(open, 0); });
+  $("#pl-plans").onchange = e => { if (!e.target.value) return; const [f, t] = e.target.value.split("_"); $("#pl-fom").value = f; $("#pl-tom").value = t; open(); };
+  $("#pl-copy").onchange = e => {
+    const k = e.target.value; if (!k) return; const cols = planColumns(); P.cells = {};
+    for (const t of Object.values(S.treninger)) if (t.plan === k) for (const c of trainingCells(t, cols)) P.cells[c] = { lag: t.lag, uker: t.uker || "" };
+    P.dirty = true; e.target.value = ""; $("#plReport").innerHTML = `<span class="ok">Kopiert inn. Se over og lagre.</span>`; renderPlan();
+  };
+  $("#pl-file").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      if (!window.XLSX) throw new Error("Excel-leseren ble ikke lastet. Sjekk nettforbindelsen og last siden på nytt.");
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" }); const res = importTreningsark(wb);
+      if (!res.found.length) throw new Error("Fant ingen treningstider. Arket må ha kolonnene «Tid» og «BANEDEL A–D» under hver ukedag.");
+      const touched = new Set(res.found.map(x => x.a.id));
+      for (const k of Object.keys(P.cells)) if (touched.has(k.split("|")[0])) delete P.cells[k];
+      const cols = planColumns(); let skipped = 0;
+      for (const x of res.found) for (let m = Math.floor(x.s0 / SLOT) * SLOT; m < x.s1; m += SLOT) for (const q of x.qs) {
+        const col = cols.find(c => c.a.id === x.a.id && c.b.id === x.b.id && c.zs <= q && q < c.zs + c.unit);
+        if (!col || !col.on) { skipped++; continue; }
+        P.cells[cellKey(x.a.id, x.b.id, x.day, col.zs, m)] = { lag: x.lag, uker: x.uker };
+
+      }
+      const lags = [...new Set(res.found.map(x => x.lag))], biw = res.found.filter(x => x.uker);
+      P.extraLag = lags.filter(l => !(S.cfg.lag || []).includes(l)); P.dirty = true;
+      $("#plReport").innerHTML = `<span class="ok">Importert ${res.found.length} treningsøkter for ${lags.length} lag fra ${esc(f.name)}.</span>
+        ${biw.length ? ` ${biw.length} økter merket «annenhver» er satt til partallsuker. Endre til oddetallsuker ved å male over med det valget.` : ""}
+        ${P.extraLag.length ? ` Nye lag som legges i laglista når du lagrer: ${P.extraLag.map(esc).join(", ")}.` : ""}
+        ${res.ignored.length ? ` Ark som ikke ble lest (annet format): ${res.ignored.map(esc).join(", ")}.` : ""}
+        ${res.unknownA.length ? ` <span class="err">Fant ikke anlegg for: ${res.unknownA.map(esc).join(", ")}.</span>` : ""}
+        ${skipped ? ` <span class="err">${skipped} ruter lå på deler av banen som er slått av under Baner.</span>` : ""} Se over hver dag og trykk «Lagre planen».`;
+      renderPlan();
+    } catch (err) { $("#plReport").innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+    e.target.value = "";
+  };
+  $("#plDays").addEventListener("click", e => { const b = e.target.closest("[data-day]"); if (b) { P.day = +b.dataset.day; renderPlan(); } });
+  $("#pl-from").parentElement.parentElement.addEventListener("change", e => {
+    if (e.target.id === "pl-from") P.from = +e.target.value; if (e.target.id === "pl-to") P.to = +e.target.value;
+    if (P.to <= P.from) P.to = P.from + 60; renderPlan();
+  });
+  $("#plPal").addEventListener("click", e => {
+    const l = e.target.closest("[data-lag]"); if (l) { P.lag = l.dataset.lag; P.erase = false; renderPlan(); return; }
+    if (e.target.id === "pl-erase") { P.erase = !P.erase; renderPlan(); return; }
+    if (e.target.id === "pl-addlag") { const v = $("#pl-newlag").value.replace(/\s+/g, " ").trim(); if (v) { P.extraLag.push(v); P.lag = v; P.erase = false; renderPlan(); } }
+  });
+  $("#plPal").addEventListener("change", e => { if (e.target.id === "pl-uker") P.uker = e.target.value; });
+  $("#plPal").addEventListener("keydown", e => { if (e.target.id === "pl-newlag" && e.key === "Enter") { e.preventDefault(); $("#pl-addlag").click(); } });
+  const grid = $("#plGrid");
+  grid.addEventListener("pointerdown", e => {
+    const td = e.target.closest("td.pc"); if (!td || td.classList.contains("off")) return;
+    e.preventDefault(); const v = P.cells[td.dataset.k];
+    P.mode = P.erase || (v && v.lag === P.lag && v.uker === P.uker) ? "erase" : "paint"; P.painting = true; paintCell(td);
+  });
+  grid.addEventListener("pointerover", e => { if (!P.painting) return; const td = e.target.closest("td.pc"); if (td) paintCell(td); });
+  grid.addEventListener("pointermove", e => { // berøring: finn ruta under fingeren
+    if (!P.painting || e.pointerType === "mouse") return; const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("td.pc"); if (el) paintCell(el);
+  });
+  document.addEventListener("pointerup", () => { if (P.painting) { P.painting = false; renderPlan(); } });
+  $("#plReset").onclick = () => {
+    const b = $("#plReset");
+    if (!b.dataset.armed && P.dirty) { b.dataset.armed = "1"; b.textContent = "Bekreft: forkast"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Forkast endringer"; }, 4000); return; }
+    delete b.dataset.armed; b.textContent = "Forkast endringer";
+    const f = $("#pl-fom").value, t = $("#pl-tom").value; P.key = null; loadPlan(f, t); $("#plReport").innerHTML = ""; renderPlan();
+  };
+  $("#plSave").onclick = async () => {
+    const btn = $("#plSave"), msg = $("#plMsg"); btn.disabled = true;
+    try {
+      const desired = planTrainings(), existing = Object.entries(S.treninger).filter(([, t]) => t.plan === P.key);
+      const have = new Map(existing.map(([id, t]) => [sig(t), id])), want = new Set(desired.map(sig));
+      const add = desired.filter(t => !have.has(sig(t))), del = existing.filter(([, t]) => !want.has(sig(t))).map(([id]) => id);
+      const newLag = [...new Set(desired.map(t => t.lag))].filter(l => !(S.cfg.lag || []).includes(l));
+      if (newLag.length) { const c = cfgDraft(); c.lag = [...new Set([...(c.lag || []), ...newLag])].sort((x, y) => x.localeCompare(y, "nb")); await S.backend.saveCfg(c); }
+      const work = [...del.map(id => () => S.backend.del("treninger", id)), ...add.map(t => () => S.backend.put("treninger", "t-" + uid(), t))];
+      let n = 0; const step = async () => { while (work.length) { await work.shift()(); n++; if (n % 5 === 0) msg.textContent = `Lagrer … ${n}`; } };
+      await Promise.all([step(), step(), step()]);
+      P.dirty = false; P.extraLag = []; P.orig = clone(P.cells);
+      msg.innerHTML = `<span class="ok">Lagret: ${add.length} nye og ${del.length} fjernede treninger, ${desired.length - add.length} uendret.</span>`;
+      renderPlan();
+    } catch (e) { msg.innerHTML = `<span class="err">${esc(errText(e))}</span>`; btn.disabled = false; }
+  };
 }
 
 // ---------- import ----------
@@ -1700,8 +2062,9 @@ function initOppsett() {
 // ---------- navigation & events ----------
 function show(v) {
   S.view = v; $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const id of ["uke", "treninger", "foresporsler", "kamper", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
+  for (const id of ["uke", "treninger", "plan", "foresporsler", "kamper", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
   if (v === "uke") renderWeek();
+  if (v === "plan") renderPlan();
 }
 $$("nav.tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#anleggSel").onchange = e => { const [aId, bId] = e.target.value.split("|"); S.anleggId = aId; S.baneId = bId; saveUi(); renderAll(); };
@@ -1751,7 +2114,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPresets(); renderAll();
+initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {
