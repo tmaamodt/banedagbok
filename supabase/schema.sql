@@ -5,15 +5,17 @@
 -- Datamodell: hver rad har en id og et JSON-dokument (data) med samme form som
 -- nettsiden bruker. Noen felt er hentet ut som egne kolonner for filtrering.
 --   config      én rad (id = 'oppsett'): klubbnavn, anlegg, delbaner, kampvarighet
---   kamper      kamper fra fotball.no (kilde = 'fotball.no') og manuelle bookinger (kilde = 'manuell')
---   treninger   faste treningstider
+--   kamper      kamper fra fotball.no (kilde = 'fotball.no'), treningskamper (kilde = 'treningskamp')
+--               og manuelle bookinger (kilde = 'manuell')
+--   treninger   treningstider: faste hver uke i en periode (type = 'fast') eller enkelttreninger (type = 'enkelt')
 --   foresporsler forespørsler om banetid fra trenere (status: ny / godkjent / avslatt)
 --   brukere     hvem som kan logge inn og hva de får gjøre (id = e-post med små bokstaver)
 --
 -- Roller (data->>'rolle' i brukere):
 --   admin         alt, inkludert brukere, anlegg, kamper og godkjenning av forespørsler
---   trener_pluss  legge inn, endre, avlyse og slette treninger for egne lag, og sende forespørsler
---   trener        avlyse og slette treninger for egne lag, og sende forespørsler
+--   trener_pluss  som trener, og i tillegg legge inn og endre enkelttreninger og treningskamper for egne lag
+--   trener        avlyse og slette treninger, enkelttreninger og treningskamper for egne lag, og sende forespørsler
+-- Faste treningstider (hver uke) legges bare inn av admin, eller ved at admin godkjenner en forespørsel.
 -- Alle, også de som ikke er logget inn, kan lese anlegg, kamper og treninger.
 
 create table if not exists public.config (
@@ -104,12 +106,14 @@ $$;
 revoke all on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost() from public;
 grant execute on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost() to anon, authenticated;
 
--- En trener (ikke trener+) kan bare avlyse enkeltdager, ikke endre selve treningstiden
+-- Trenere kan bare avlyse enkeltdager på faste treningstider. Trener+ kan i tillegg endre enkelttreninger.
 create or replace function public.sjekk_trener_endring() returns trigger
 language plpgsql security definer set search_path = public as $$
+declare r text := public.min_rolle();
 begin
-  if public.min_rolle() = 'trener' and (new.data - 'avlyst') is distinct from (old.data - 'avlyst') then
-    raise exception 'Trenere kan bare avlyse enkeltdager. Be admin eller en trener+ endre treningstiden.'
+  if (r = 'trener' or (r = 'trener_pluss' and (coalesce(old.data->>'type', 'fast') <> 'enkelt' or coalesce(new.data->>'type', 'fast') <> 'enkelt')))
+     and (new.data - 'avlyst') is distinct from (old.data - 'avlyst') then
+    raise exception 'Du kan bare avlyse enkeltdager. Endring av en fast treningstid må søkes om hos admin.'
       using errcode = '42501';
   end if;
   return new;
@@ -155,13 +159,18 @@ create policy "admin endrer" on public.config for all to authenticated using (pu
 
 create policy "alle kan lese" on public.kamper for select to anon, authenticated using (true);
 create policy "admin endrer" on public.kamper for all to authenticated using (public.er_admin()) with check (public.er_admin());
-create policy "trenere sletter egne bookinger" on public.kamper for delete to authenticated
-  using (kilde = 'manuell' and public.har_lag(data->>'lag'));
+create policy "trenere sletter egne bookinger og treningskamper" on public.kamper for delete to authenticated
+  using (kilde in ('manuell', 'treningskamp') and public.har_lag(data->>'lag'));
+create policy "trener+ legger inn treningskamper" on public.kamper for insert to authenticated
+  with check (kilde = 'treningskamp' and public.min_rolle() = 'trener_pluss' and public.har_lag(data->>'lag'));
+create policy "trener+ endrer treningskamper" on public.kamper for update to authenticated
+  using (kilde = 'treningskamp' and public.min_rolle() = 'trener_pluss' and public.har_lag(data->>'lag'))
+  with check (kilde = 'treningskamp' and public.min_rolle() = 'trener_pluss' and public.har_lag(data->>'lag'));
 
 -- treninger
 create policy "alle kan lese" on public.treninger for select to anon, authenticated using (true);
-create policy "admin og trener+ legger til" on public.treninger for insert to authenticated
-  with check (public.er_admin() or (public.min_rolle() = 'trener_pluss' and public.har_lag(data->>'lag')));
+create policy "admin legger til, trener+ bare enkelttreninger" on public.treninger for insert to authenticated
+  with check (public.er_admin() or (public.min_rolle() = 'trener_pluss' and data->>'type' = 'enkelt' and public.har_lag(data->>'lag')));
 create policy "admin og trenere endrer egne" on public.treninger for update to authenticated
   using (public.er_admin() or public.har_lag(data->>'lag'))
   with check (public.er_admin() or public.har_lag(data->>'lag'));

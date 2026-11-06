@@ -11,6 +11,7 @@
   --pitch: #2b7a47; --pitch-soft: #dfeee3; --pitch-ink: #ffffff;
   --match: #b14f1c; --match-soft: #f8e4d7; --train: #2b5d8c; --train-soft: #dce7f3;
   --conflict: #c42626; --conflict-soft: #fbe1e1; --chalk: rgba(43,122,71,.16);
+  --friendly: #7a3f9e; --friendly-soft: #f1e4f8;
   --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -20,12 +21,12 @@
   --bg: #0e1611; --surface: #152019; --ink: #e2ebe4; --muted: #92a397; --line: #2a3a2f;
   --pitch: #58b577; --pitch-soft: #1b3123; --pitch-ink: #0e1611;
   --match: #e98d58; --match-soft: #3a2417; --train: #7fb1e2; --train-soft: #1a2b3d;
-  --conflict: #ff6d6d; --conflict-soft: #3d1a1a; --chalk: rgba(88,181,119,.14); color-scheme: dark } }
+  --conflict: #ff6d6d; --conflict-soft: #3d1a1a; --chalk: rgba(88,181,119,.14); --friendly: #cf9ef0; --friendly-soft: #33213f; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #0e1611; --surface: #152019; --ink: #e2ebe4; --muted: #92a397; --line: #2a3a2f;
   --pitch: #58b577; --pitch-soft: #1b3123; --pitch-ink: #0e1611;
   --match: #e98d58; --match-soft: #3a2417; --train: #7fb1e2; --train-soft: #1a2b3d;
-  --conflict: #ff6d6d; --conflict-soft: #3d1a1a; --chalk: rgba(88,181,119,.14); color-scheme: dark }
+  --conflict: #ff6d6d; --conflict-soft: #3d1a1a; --chalk: rgba(88,181,119,.14); --friendly: #cf9ef0; --friendly-soft: #33213f; color-scheme: dark }
 
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--f-body); }
@@ -110,6 +111,11 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .blk.trening { background: var(--train-soft); border-color: var(--train); color: var(--ink) }
 .blk.trening .k { color: var(--train) }
 .blk.booking { background: var(--pitch-soft); border-color: var(--pitch); color: var(--ink) }
+.blk.tkamp { background: var(--friendly-soft); border-color: var(--friendly); color: var(--ink) }
+.blk.tkamp .k { color: var(--friendly) }
+.blk.enkelt { border-style: dashed solid }
+.pill.tkamp { border-color: var(--friendly); color: var(--friendly) }
+.pill.enkelt { border-color: var(--train); color: var(--train) }
 .blk.booking .k { color: var(--pitch) }
 .blk.avlyst { opacity: .45; text-decoration: line-through }
 .blk.konflikt { border: 2px solid var(--conflict); box-shadow: 0 0 0 1px var(--conflict) inset }
@@ -244,11 +250,12 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <button class="btn" id="jumpNext" title="Neste uke med aktivitet">Neste aktivitet ⇥</button>
       <button class="btn primary" id="addTrain">+ Treningstid</button>
       <button class="btn rw" id="addBooking">+ Enkeltbooking</button>
+      <button class="btn" id="addTK" hidden>+ Treningskamp</button>
       <button class="btn primary" id="addRequest" hidden>Søk om tid</button>
     </div>
     <div class="season panel">
       <div class="bar"><h3>Sesongen <span class="num" id="seasonYear"></span></h3><span class="spacer"></span>
-        <div class="legend"><span><i style="background:var(--match)"></i>Kamper</span><span><i style="background:var(--train)"></i>Treninger</span><span><i style="background:var(--pitch-soft);border:1px solid var(--pitch)"></i>Booking</span><span><i style="border:2px solid var(--conflict)"></i>Kollisjon</span></div></div>
+        <div class="legend"><span><i style="background:var(--match)"></i>Kamper</span><span><i style="background:var(--friendly)"></i>Treningskamper</span><span><i style="background:var(--train)"></i>Treninger</span><span><i style="background:var(--pitch-soft);border:1px solid var(--pitch)"></i>Booking</span><span><i style="border:2px solid var(--conflict)"></i>Kollisjon</span></div></div>
       <div class="strip" id="strip"></div>
       <div class="stripaxis" id="stripAxis"></div>
     </div>
@@ -262,20 +269,24 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <div class="cols">
       <div class="panel" id="tfInfo" hidden style="display:grid;gap:10px">
         <h2>Treningstider for laget</h2>
-        <p class="note">Som trener kan du avlyse enkeltdager og slette treningstider for <b id="tfInfoLag"></b>. Klikk på en trening i lista eller i ukevisningen. Trenger dere ny eller endret tid, send en forespørsel til admin.</p>
+        <p class="note">Som trener kan du slette treninger (både faste og enkelttreninger) og avlyse enkeltdager for <b id="tfInfoLag"></b>. Klikk på en trening i lista eller i ukevisningen. Trenger dere ny eller endret tid, send en forespørsel til admin.</p>
         <p><button class="btn primary" type="button" id="tfInfoReq">Søk om tid</button></p>
       </div>
       <div class="panel" id="tfPanel" style="display:grid;gap:12px">
-        <h2 id="tfTitle">Ny fast treningstid</h2>
+        <h2 id="tfTitle">Ny treningstid</h2>
+        <p class="note" id="tfPlussNote" hidden>Som trener+ legger du inn enkelttreninger direkte. Faste treningstider hver uke søkes om under Forespørsler.</p>
         <form class="form" id="tf">
+          <label>Type<select id="tf-type"><option value="fast">Fast hver uke</option><option value="enkelt">Enkelttrening</option></select></label>
           <label>Lag<input type="text" id="tf-lag" list="lagList" placeholder="f.eks. G12 Blå"><select id="tf-lagsel" hidden></select></label>
           <label>Anlegg<select id="tf-anlegg"></select></label>
           <label class="wide" style="grid-column:1/-1">Del av banen<select id="tf-del"></select></label>
-          <label>Ukedag<select id="tf-dag"></select></label>
+          <label data-tt="fast">Ukedag<select id="tf-dag"></select></label>
+          <label data-tt="enkelt" hidden>Dato<input type="date" id="tf-dato"></label>
           <label>Fra<input type="time" id="tf-fra" required value="17:30" step="300"></label>
           <label>Til<input type="time" id="tf-til" required value="19:00" step="300"></label>
-          <label>Gjelder fra<input type="date" id="tf-fom" required></label>
-          <label>Gjelder til<input type="date" id="tf-tom" required></label>
+          <label data-tt="fast">Periode fra<input type="date" id="tf-fom"></label>
+          <label data-tt="fast">Periode til<input type="date" id="tf-tom"></label>
+          <div data-tt="fast" class="seg" style="grid-column:1/-1" role="group" aria-label="Velg periode" data-preset-for="tf"></div>
           <label class="wide">Merknad<input type="text" id="tf-merk" placeholder="Trener, utstyr …"></label>
           <div id="tf-coll" class="note wide" style="grid-column:1/-1"></div>
           <div class="bar wide" style="grid-column:1/-1">
@@ -286,9 +297,9 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         </form>
       </div>
       <div class="panel" style="display:grid;gap:10px;min-width:0">
-        <div class="bar"><h2>Faste treningstider</h2><span class="spacer"></span><label class="note" id="tlMineWrap" hidden><input type="checkbox" id="tlMine" checked> Bare mine lag</label><select id="tlFilter" aria-label="Filtrer på anlegg"></select></div>
+        <div class="bar"><h2>Treningstider</h2><span class="spacer"></span><label class="note" id="tlMineWrap" hidden><input type="checkbox" id="tlMine" checked> Bare mine lag</label><select id="tlFilter" aria-label="Filtrer på anlegg"></select></div>
         <div class="tablewrap"><table><thead><tr><th>Dag</th><th>Tid</th><th>Lag</th><th>Bane</th><th>Periode</th></tr></thead><tbody id="tList"></tbody></table></div>
-        <p class="note">Treningene gjentas hver uke i perioden. Klikk på en trening for å avlyse enkeltdager, endre eller slette.</p>
+        <p class="note">Faste treninger gjentas hver uke i perioden, og stopper av seg selv når perioden er over. Enkelttreninger vises bare til datoen er passert. Klikk på en trening for å avlyse en dag, endre eller slette.</p>
       </div>
     </div>
   </section>
@@ -307,8 +318,9 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <label data-rt="enkelt" hidden>Dato<input type="date" id="rf-dato"></label>
           <label>Fra<input type="time" id="rf-fra" value="17:30" step="300"></label>
           <label>Til<input type="time" id="rf-til" value="19:00" step="300"></label>
-          <label data-rt="fast">Gjelder fra<input type="date" id="rf-fom"></label>
-          <label data-rt="fast">Gjelder til<input type="date" id="rf-tom"></label>
+          <label data-rt="fast">Periode fra<input type="date" id="rf-fom"></label>
+          <label data-rt="fast">Periode til<input type="date" id="rf-tom"></label>
+          <div data-rt="fast" class="seg" style="grid-column:1/-1" role="group" aria-label="Velg periode" data-preset-for="rf"></div>
           <label class="wide">Begrunnelse eller merknad<input type="text" id="rf-merk" placeholder="f.eks. ekstra økt før cup"></label>
           <div id="rf-coll" class="note" style="grid-column:1/-1"></div>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit" id="rf-send">Send forespørsel</button><span id="rf-msg" class="note"></span></div>
@@ -352,7 +364,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <div class="panel" style="display:grid;gap:12px">
       <div class="bar"><h2>Kamper og bookinger</h2><span class="spacer"></span>
         <select id="kFilterA" aria-label="Anlegg"></select>
-        <select id="kFilterT" aria-label="Type"><option value="">Alle typer</option><option value="fotball.no">Kamper fra fotball.no</option><option value="manuell">Manuelle bookinger</option></select>
+        <select id="kFilterT" aria-label="Type"><option value="">Alle typer</option><option value="fotball.no">Kamper fra fotball.no</option><option value="treningskamp">Treningskamper</option><option value="manuell">Manuelle bookinger</option></select>
         <label class="note"><input type="checkbox" id="kFuture" checked> Bare kommende</label>
       </div>
       <div class="tablewrap"><table><thead><tr><th>Dato</th><th>Tid</th><th>Bane</th><th>Kamp / booking</th><th>Turnering</th><th>Type</th></tr></thead><tbody id="kList"></tbody></table></div>
@@ -482,10 +494,15 @@ const rolle = () => S.me?.rolle || null;
 const isAdmin = () => rolle() === "admin";
 const isTrainer = () => rolle() === "trener" || rolle() === "trener_pluss";
 const myLag = () => S.me?.lag || [];
-const canCreateTraining = () => isAdmin() || (rolle() === "trener_pluss" && myLag().length > 0);
-const canEditTraining = t => isAdmin() || (rolle() === "trener_pluss" && myLag().includes(t.lag));
+const isEnkelt = t => t?.type === "enkelt";
+const isPluss = () => rolle() === "trener_pluss" && myLag().length > 0;
+// Faste treninger: bare admin. Trener+: enkelttreninger og treningskamper for egne lag. Trenere: slette og avlyse egne.
+const canCreateTraining = type => isAdmin() || (isPluss() && type !== "fast");
+const canEditTraining = t => isAdmin() || (isPluss() && isEnkelt(t) && myLag().includes(t.lag));
 const canDeleteTraining = t => isAdmin() || (isTrainer() && myLag().includes(t.lag));
-const canDeleteBooking = k => isAdmin() || (k.kilde === "manuell" && isTrainer() && myLag().includes(k.lag));
+const canCreateTK = () => isAdmin() || isPluss();
+const canEditKamp = k => isAdmin() || (k.kilde === "treningskamp" && isPluss() && myLag().includes(k.lag));
+const canDeleteBooking = k => isAdmin() || (["manuell", "treningskamp"].includes(k.kilde) && isTrainer() && myLag().includes(k.lag));
 const canRequest = () => isTrainer() && myLag().length > 0;
 const showMerknad = () => !!S.me;
 const isTestMode = () => S.backend && S.backend.name !== "supabase";
@@ -708,19 +725,20 @@ function occurrences(weekStart, aId, bId) {
   const A = anlegg(aId), onBane = del => !bId || (delbane(A, del)?.baneId || A?.baner[0]?.id) === bId;
   for (const [id, t] of Object.entries(S.treninger)) {
     if (t.anleggId !== aId || !onBane(t.delbaneId)) continue;
-    const i = (+t.ukedag) - 1; const date = days[i];
-    if (!date || date < t.fom || date > t.tom) continue;
+    let date;
+    if (isEnkelt(t)) { if (!days.includes(t.dato)) continue; date = t.dato; }
+    else { date = days[(+t.ukedag) - 1]; if (!date || date < t.fom || date > t.tom) continue; }
     const s = toMin(t.fra), e = toMin(t.til); if (s == null || e == null) continue;
-    out.push({ type: "trening", id, date, start: s, end: e, del: t.delbaneId, avlyst: (t.avlyst || []).includes(date),
-      label: t.lag, sub: showMerknad() ? (t.merknad || "") : "", src: t });
+    out.push({ type: "trening", enkelt: isEnkelt(t), id, date, start: s, end: e, del: t.delbaneId, avlyst: (t.avlyst || []).includes(date),
+      label: t.lag, sub: [isEnkelt(t) ? "Enkelttrening" : "", showMerknad() ? (t.merknad || "") : ""].filter(Boolean).join(" · "), src: t });
   }
   for (const [id, k] of Object.entries(S.kamper)) {
     if (k.anleggId !== aId || !days.includes(k.dato) || !onBane(k.delbaneId)) continue;
     const s = toMin(k.tid); if (s == null) continue;
-    const manual = k.kilde === "manuell";
-    out.push({ type: manual ? "booking" : "kamp", id, date: k.dato, start: s, end: s + kampVarighet(k), del: k.delbaneId,
+    const manual = k.kilde === "manuell", tk = k.kilde === "treningskamp";
+    out.push({ type: manual ? "booking" : tk ? "tkamp" : "kamp", id, date: k.dato, start: s, end: s + kampVarighet(k), del: k.delbaneId,
       label: manual ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
-      sub: manual ? (showMerknad() ? (k.merknad || "") : "") : (k.turnering || ""), src: k });
+      sub: manual ? (showMerknad() ? (k.merknad || "") : "") : tk ? "Treningskamp" : (k.turnering || ""), src: k });
   }
   for (const [id, r] of Object.entries(S.foresporsler)) {
     if (r.status !== "ny" || r.anleggId !== aId || !S.me || !onBane(r.delbaneId)) continue;
@@ -868,14 +886,20 @@ function tabAllowed(v) {
 function applyRoleUI() {
   $$("nav.tabs button").forEach(b => { b.hidden = !tabAllowed(b.dataset.view); });
   if (!tabAllowed(S.view)) show("uke");
-  $("#addTrain").hidden = !canCreateTraining();
+  $("#addTrain").hidden = !canCreateTraining("enkelt");
   $("#addBooking").hidden = !isAdmin();
+  $("#addTK").hidden = !canCreateTK();
   $("#addRequest").hidden = !canRequest();
-  $("#ukeNoteClick").textContent = isAdmin() ? ", og på en ledig flate for å legge inn en enkeltbooking" : canRequest() ? ", og på en ledig flate for å søke om tid" : "";
+  $("#ukeNoteClick").textContent = isAdmin() ? ", og på en ledig flate for å legge inn en enkeltbooking" : isPluss() ? ", og på en ledig flate for å legge inn en enkelttrening" : canRequest() ? ", og på en ledig flate for å søke om tid" : "";
   // treningsskjema
   const pluss = rolle() === "trener_pluss";
-  $("#tfPanel").hidden = !canCreateTraining() && !S.editTrain;
-  $("#tfInfo").hidden = !isTrainer() || canCreateTraining();
+  $("#tfPanel").hidden = !canCreateTraining("enkelt") && !S.editTrain;
+  $("#tfInfo").hidden = !isTrainer() || canCreateTraining("enkelt");
+  $("#tfPlussNote").hidden = isAdmin() || !isPluss();
+  { const v = $("#tf-type").value; $("#tf-type").innerHTML = (isAdmin() ? `<option value="fast">Fast hver uke</option>` : "") + `<option value="enkelt">Enkelttrening</option>`;
+    $("#tf-type").value = isAdmin() && v ? v : "enkelt"; syncTrainType(); }
+  { const v = $("#rf-type").value; $("#rf-type").innerHTML = `<option value="fast">Fast hver uke</option>` + (isPluss() ? "" : `<option value="enkelt">Én dag</option>`);
+    $("#rf-type").value = [...$("#rf-type").options].some(o => o.value === v) ? v : "fast"; $$("#rf [data-rt]").forEach(el => { el.hidden = el.dataset.rt !== $("#rf-type").value; }); }
   $("#tfInfoLag").textContent = myLag().join(", ") || "laget ditt";
   $("#tfInfoReq").hidden = !canRequest();
   $("#tf-lag").hidden = pluss; $("#tf-lagsel").hidden = !pluss;
@@ -928,7 +952,7 @@ function renderWeek() {
       const top = Math.max(0, (it.start - DAY_START) / 60 * hpx), bot = Math.min(H * hpx, (it.end - DAY_START) / 60 * hpx);
       const d = delbane(a, it.del);
       const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}`;
-      html += `<button class="blk ${it.type}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
+      html += `<button class="blk ${it.type}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
         style="top:${top + 1}px;height:${Math.max(18, bot - top - 2)}px;left:calc(${zs / 12 * 100}% + 2px);width:calc(${(ze - zs) / 12 * 100}% - 4px)" title="${esc(title)}">
         <span class="k">${fromMin(it.start)} ${esc(d ? d.navn : "")}</span><span class="l">${esc(it.label)}</span>${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
     }
@@ -967,6 +991,7 @@ function weekActivity(aId, year, bId) {
   }
   for (const t of Object.values(S.treninger)) {
     if (t.anleggId !== aId || (bId && baneOf(anlegg(aId), t.delbaneId)?.id !== bId)) continue;
+    if (isEnkelt(t)) { const r = res.get(ymd(monday(parseYmd(t.dato)))); if (r) r.t++; continue; }
     for (const [key, r] of res) { const date = ymd(addDays(parseYmd(key), (+t.ukedag) - 1)); if (date >= t.fom && date <= t.tom && !(t.avlyst || []).includes(date)) r.t++; }
   }
   return res;
@@ -988,12 +1013,13 @@ function renderSeason() {
 
 function renderTrainList() {
   const f = $("#tlFilter").value, mine = isTrainer() && $("#tlMine").checked;
-  const rows = Object.entries(S.treninger).filter(([, t]) => (!f || t.anleggId === f) && (!mine || myLag().includes(t.lag)))
-    .sort(([, x], [, y]) => (x.ukedag - y.ukedag) || (toMin(x.fra) - toMin(y.fra)));
+  const today = ymd(new Date()), wd = t => isEnkelt(t) ? (parseYmd(t.dato).getDay() + 6) % 7 + 1 : +t.ukedag;
+  const rows = Object.entries(S.treninger).filter(([, t]) => (!f || t.anleggId === f) && (!mine || myLag().includes(t.lag)) && !(isEnkelt(t) && t.dato < today))
+    .sort(([, x], [, y]) => (isEnkelt(x) - isEnkelt(y)) || (isEnkelt(x) ? (x.dato + x.fra).localeCompare(y.dato + y.fra) : (wd(x) - wd(y)) || (toMin(x.fra) - toMin(y.fra))));
   $("#tList").innerHTML = rows.length ? rows.map(([id, t]) => { const a = anlegg(t.anleggId); const d = delbane(a, t.delbaneId);
-    return `<tr class="click" data-tid="${esc(id)}"><td>${DAGER[t.ukedag - 1]}</td><td class="num">${esc(t.fra)}–${esc(t.til)}</td><td><b>${esc(t.lag)}</b>${t.merknad && showMerknad() ? `<br><span class="muted">${esc(t.merknad)}</span>` : ""}</td>
-      <td>${esc(delLabel(a, t.delbaneId))}<br><span class="muted">${esc(a?.navn || "")}</span></td><td class="num">${fmtDate(t.fom)} – ${fmtDate(t.tom)}${(t.avlyst || []).length ? `<br><span class="muted">${t.avlyst.length} avlyst</span>` : ""}</td></tr>`; }).join("")
-    : `<tr><td colspan="5" class="muted">${mine ? "Ingen faste treningstider for lagene dine ennå." : "Ingen faste treningstider ennå."}${canCreateTraining() ? " Fyll inn skjemaet for å legge inn den første." : canRequest() ? " Send en forespørsel for å få tid." : ""}</td></tr>`;
+    return `<tr class="click" data-tid="${esc(id)}"><td>${DAGER[wd(t) - 1]}</td><td class="num">${esc(t.fra)}–${esc(t.til)}</td><td><b>${esc(t.lag)}</b>${t.merknad && showMerknad() ? `<br><span class="muted">${esc(t.merknad)}</span>` : ""}</td>
+      <td>${esc(delLabel(a, t.delbaneId))}<br><span class="muted">${esc(a?.navn || "")}</span></td><td class="num">${isEnkelt(t) ? `<span class="pill enkelt">Enkelttrening</span><br>${fmtDate(t.dato)}` : `${fmtDate(t.fom)} – ${fmtDate(t.tom)} ${t.tom.slice(0, 4)}${(t.avlyst || []).length ? `<br><span class="muted">${t.avlyst.length} avlyst</span>` : ""}`}</td></tr>`; }).join("")
+    : `<tr><td colspan="5" class="muted">${mine ? "Ingen faste treningstider for lagene dine ennå." : "Ingen faste treningstider ennå."}${canCreateTraining("enkelt") ? " Fyll inn skjemaet for å legge inn den første." : canRequest() ? " Send en forespørsel for å få tid." : ""}</td></tr>`;
 }
 function renderKampList() {
   const fa = $("#kFilterA").value, ft = $("#kFilterT").value, fut = $("#kFuture").checked, today = ymd(new Date());
@@ -1002,7 +1028,7 @@ function renderKampList() {
   $("#kList").innerHTML = rows.length ? rows.slice(0, 600).map(([id, k]) => { const a = anlegg(k.anleggId); const d = delbane(a, k.delbaneId); const man = k.kilde === "manuell";
     return `<tr class="click" data-kid="${esc(id)}"><td class="num">${fmtDate(k.dato)}</td><td class="num">${esc(k.tid)}</td><td>${esc(d ? delLabel(a, k.delbaneId) : k.baneNavn || "?")}</td>
       <td>${man ? esc(k.tittel || "Booking") : `${esc((k.hjemmelag || "").trim())} – ${esc((k.bortelag || "").trim())}`}${k.resultat && k.resultat.trim() !== "-" ? ` <span class="num muted">${esc(k.resultat)}</span>` : ""}</td>
-      <td>${esc(man ? (showMerknad() ? k.merknad || "" : "") : (k.turnering || ""))}</td><td><span class="pill ${man ? "booking" : "kamp"}">${man ? "Booking" : esc(k.spillform || "Kamp")}</span></td></tr>`; }).join("")
+      <td>${esc(man ? (showMerknad() ? k.merknad || "" : "") : k.kilde === "treningskamp" ? "Treningskamp" : (k.turnering || ""))}</td><td><span class="pill ${man ? "booking" : k.kilde === "treningskamp" ? "tkamp" : "kamp"}">${man ? "Booking" : esc(k.spillform || "Kamp")}</span></td></tr>`; }).join("")
     : `<tr><td colspan="6" class="muted">${fut ? "Ingen kommende kamper. Hent kampoversikten under «Hent fra fotball.no», eller fjern haken for «Bare kommende»." : "Ingen kamper ennå."}</td></tr>`;
 }
 function renderImport() {
@@ -1080,14 +1106,15 @@ function showTraining(id, date) {
   const t = S.treninger[id]; if (!t) return; const a = anlegg(t.anleggId); const d = delbane(a, t.delbaneId);
   const avl = date ? (t.avlyst || []).includes(date) : false;
   const canDel = canDeleteTraining(t), canEd = canEditTraining(t);
-  openDlg(t.lag, `<dl class="kv"><dt>Tid</dt><dd class="num">${DAGER[t.ukedag - 1]} ${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(delLabel(a, t.delbaneId))}, ${esc(a?.navn || "")}</span></span></dd>
-    <dt>Periode</dt><dd class="num">${fmtDate(t.fom)} – ${fmtDate(t.tom)}</dd>${t.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(t.merknad)}</dd>` : ""}
+  const enk = isEnkelt(t);
+  openDlg(t.lag, `<dl class="kv"><dt>${enk ? "Enkelttrening" : "Fast trening"}</dt><dd class="num">${enk ? `${fmtDate(t.dato)} ${t.dato.slice(0, 4)}, ` : `Hver ${DAGER[t.ukedag - 1]} `}${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(delLabel(a, t.delbaneId))}, ${esc(a?.navn || "")}</span></span></dd>
+    ${enk ? "" : `<dt>Periode</dt><dd class="num">${fmtDate(t.fom)} ${t.fom.slice(0, 4)} – ${fmtDate(t.tom)} ${t.tom.slice(0, 4)}</dd>`}${t.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(t.merknad)}</dd>` : ""}
     ${(t.avlyst || []).length && showMerknad() ? `<dt>Avlyst</dt><dd class="num">${t.avlyst.map(fmtDate).join(", ")}</dd>` : ""}
-    ${date ? `<dt>Denne gangen</dt><dd>${fmtDate(date)}${avl ? ' <span class="err">avlyst</span>' : ""}</dd>` : ""}</dl>
+    ${date && !enk ? `<dt>Denne gangen</dt><dd>${fmtDate(date)}${avl ? ' <span class="err">avlyst</span>' : ""}</dd>` : ""}</dl>
     ${!canDel && !canEd && isTrainer() ? `<p class="note">Dette er ikke et av lagene dine, så du kan ikke endre treningen.</p>` : ""}`,
-    `${canDel && date ? `<button class="btn" id="dAvl">${avl ? "Gjeninnfør " : "Avlys "}${fmtDate(date)}</button>` : ""}<span class="spacer"></span>
-     ${canDel ? `<button class="btn danger" id="dDel">Slett treningstid</button>` : ""}${canEd ? `<button class="btn" id="dEdit">Rediger fast tid</button>` : ""}`);
-  if ($("#dDel")) confirmBtn($("#dDel"), "Bekreft: slett hele treningstiden", async () => { await S.backend.del("treninger", id); dlg.close(); });
+    `${canDel && date && !enk ? `<button class="btn" id="dAvl">${avl ? "Gjeninnfør " : "Avlys "}${fmtDate(date)}</button>` : ""}<span class="spacer"></span>
+     ${canDel ? `<button class="btn danger" id="dDel">${enk ? "Slett treningen" : "Slett treningstiden"}</button>` : ""}${canEd ? `<button class="btn" id="dEdit">Rediger</button>` : ""}`);
+  if ($("#dDel")) confirmBtn($("#dDel"), enk ? "Bekreft sletting" : "Bekreft: slett alle ukene", async () => { await S.backend.del("treninger", id); dlg.close(); });
   if (!$("#dAvl")) { if ($("#dEdit")) $("#dEdit").onclick = () => { dlg.close(); editTraining(id); }; return; }
   $("#dAvl").onclick = async () => {
     const nt = clone(t); const set = new Set(nt.avlyst || []); avl ? set.delete(date) : set.add(date); nt.avlyst = [...set].sort();
@@ -1096,17 +1123,18 @@ function showTraining(id, date) {
   if ($("#dEdit")) $("#dEdit").onclick = () => { dlg.close(); editTraining(id); };
 }
 function showKamp(id) {
-  const k = S.kamper[id]; if (!k) return; const a = anlegg(k.anleggId); const man = k.kilde === "manuell";
+  const k = S.kamper[id]; if (!k) return; const a = anlegg(k.anleggId); const man = k.kilde === "manuell", tk = k.kilde === "treningskamp";
   const s = toMin(k.tid), dur = kampVarighet(k);
+  if (tk && canEditKamp(k)) return treningskampDialog(id);
   if (!isAdmin()) {
     const d = delbane(a, k.delbaneId);
     openDlg(man ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
       `<dl class="kv"><dt>Dato</dt><dd class="num">${fmtDate(k.dato)} ${k.dato.slice(0, 4)}</dd><dt>Tid</dt><dd class="num">${fromMin(s)}–${fromMin(s + dur)}</dd>
         <dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, k.delbaneId, 48)}<span>${esc(d ? delLabel(a, k.delbaneId) : k.baneNavn || "?")}, ${esc(a?.navn || "")}</span></span></dd>
         ${man ? (k.lag ? `<dt>Lag</dt><dd>${esc(k.lag)}</dd>` : "") + (k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : "")
-          : `<dt>Turnering</dt><dd>${esc(k.turnering || "")}</dd><dt>Spillform</dt><dd>${esc(k.spillform || "")}</dd>${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}`}</dl>
-        ${man ? "" : `<p class="note">Kampen er hentet fra fotball.no. Tiden banen er opptatt inkluderer oppvarming.</p>`}`,
-      canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">Slett booking</button>` : "");
+          : `<dt>${tk ? "Type" : "Turnering"}</dt><dd>${tk ? `<span class="pill tkamp">Treningskamp</span>` : esc(k.turnering || "")}</dd><dt>Spillform</dt><dd>${esc(k.spillform || "")}</dd>${tk && k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : ""}${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}`}</dl>
+        ${man ? "" : tk ? `<p class="note">Treningskampen er lagt inn i banedagboken og finnes ikke på fotball.no.</p>` : `<p class="note">Kampen er hentet fra fotball.no. Tiden banen er opptatt inkluderer oppvarming.</p>`}`,
+      canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">${tk ? "Slett treningskampen" : "Slett booking"}</button>` : "");
     if ($("#kDel")) confirmBtn($("#kDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
     return;
   }
@@ -1135,6 +1163,44 @@ function showKamp(id) {
   };
   confirmBtn($("#kDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
 }
+// Treningskamp: vises som en kamp med egen farge, legges inn her fordi den ikke finnes på fotball.no
+function treningskampDialog(id, date, minutes) {
+  const old = id ? S.kamper[id] : null, a = old ? anlegg(old.anleggId) : curA(); if (!a || (old ? !canEditKamp(old) : !canCreateTK())) return;
+  const start = old ? old.tid : fromMin(minutes != null ? Math.round(minutes / 15) * 15 : 18 * 60);
+  const sf = old ? (spillformKey(old.spillform) || "11") : "7";
+  const lagField = isAdmin() ? `<input type="text" id="tk-lag" list="lagList" value="${esc(old?.lag || "")}" placeholder="f.eks. G12 Blå">`
+    : `<select id="tk-lag">${myLag().map(l => `<option${l === old?.lag ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  openDlg(old ? "Treningskamp" : "Ny treningskamp", `<form class="form" id="tkf">
+      <label>Vårt lag${lagField}</label>
+      <label>Motstander<input type="text" id="tk-mot" value="${esc(old?.bortelag || "")}" placeholder="f.eks. Sørumsand G12"></label>
+      <label>Dato<input type="date" id="tk-dato" value="${esc(old?.dato || date || ymd(new Date()))}"></label>
+      <label>Avspark<input type="time" id="tk-tid" value="${esc(start)}" step="300"></label>
+      <label>Spillform<select id="tk-sf">${["11", "9", "7", "5", "3"].map(n => `<option value="${n}"${n === sf ? " selected" : ""}>${n} mot ${n}</option>`).join("")}</select></label>
+      <label>Banen opptatt (min)<input type="number" id="tk-var" min="15" max="300" step="5" value="${old ? kampVarighet(old) : +(S.cfg.varighet[sf] || 75)}"></label>
+      <label class="wide" style="grid-column:1/-1">Del av banen<select id="tk-del"></select></label>
+      <label class="wide" style="grid-column:1/-1">Merknad<input type="text" id="tk-merk" value="${esc(old?.merknad || "")}"></label>
+      <div id="tk-coll" class="note" style="grid-column:1/-1"></div></form>
+      <p class="note">Treningskamper finnes ikke på fotball.no. De vises som kamper i lilla og kan slettes av lagets trenere.</p>`,
+    `${old && canDeleteBooking(old) ? `<button class="btn danger" id="tkDel">Slett</button>` : ""}<span class="spacer"></span><button class="btn primary" id="tkSave">Lagre treningskamp</button>`);
+  // spillform foreslår størrelse på banen: 11 → hel, 9 → halvdel, 7/5/3 → kvart
+  const suggest = n => { const bId = baneOf(a, $("#tk-del").value)?.id || S.baneId; const w = n === "11" ? 12 : n === "9" ? 6 : 3;
+    const d = partsOf(a, bId).find(x => x.bredde === w) || partsOf(a, bId).find(x => x.bredde === 12); return d?.id; };
+  delOptions($("#tk-del"), a, old?.delbaneId || suggest(sf));
+  const cand = () => ({ type: "enkelt", anleggId: a.id, delbaneId: $("#tk-del").value, dato: $("#tk-dato").value, fra: $("#tk-tid").value, til: fromMin((toMin($("#tk-tid").value) || 0) + (+$("#tk-var").value || 60)) });
+  const prev = () => { $("#tk-coll").innerHTML = collisionHtml(collisions(cand(), id), "Banen er ledig."); };
+  $("#tk-sf").onchange = () => { const n = $("#tk-sf").value; $("#tk-var").value = +(S.cfg.varighet[n] || 75); delOptions($("#tk-del"), a, suggest(n)); prev(); };
+  $("#tkf").addEventListener("input", prev); $("#tkf").addEventListener("change", prev); prev();
+  $("#tkSave").onclick = async () => {
+    const lag = $("#tk-lag").value.trim(), mot = $("#tk-mot").value.trim(), n = $("#tk-sf").value, v = +$("#tk-var").value;
+    if (!lag) { $("#tk-lag").focus(); return; } if (!mot) { $("#tk-mot").focus(); return; }
+    if (!isAdmin() && !myLag().includes(lag)) return;
+    const k = { ...(old || {}), kilde: "treningskamp", lag, hjemmelag: lag, bortelag: mot, dato: $("#tk-dato").value, tid: $("#tk-tid").value,
+      spillform: `${n} MOT ${n}`, varighet: v && v !== +(S.cfg.varighet[n] || 0) ? v : 0, anleggId: a.id, delbaneId: $("#tk-del").value, merknad: $("#tk-merk").value.trim() };
+    try { await S.backend.put("kamper", id || "tk-" + uid(), k); dlg.close(); } catch (e) { $("#tkSave").textContent = errText(e); }
+  };
+  if ($("#tkDel")) confirmBtn($("#tkDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
+  if (!old) setTimeout(() => $("#tk-mot")?.focus(), 30);
+}
 function newBooking(date, minutes) {
   const a = curA(); if (!a || !isAdmin()) return;
   const start = minutes != null ? Math.round(minutes / 15) * 15 : 17 * 60;
@@ -1160,43 +1226,63 @@ function newBooking(date, minutes) {
 function initTrainForm() {
   $("#tf-dag").innerHTML = DAGER.map((d, i) => `<option value="${i + 1}">${d}</option>`).join("");
   const y = new Date().getFullYear();
-  $("#tf-fom").value = ymd(new Date()); $("#tf-tom").value = `${y}-12-31`;
+  $("#tf-fom").value = ymd(new Date()); $("#tf-tom").value = `${y}-12-31`; $("#tf-dato").value = ymd(new Date());
   $("#tf-anlegg").onchange = () => delOptions($("#tf-del"), anlegg($("#tf-anlegg").value));
+  $("#tf-type").onchange = syncTrainType;
   $("#tf").onsubmit = async e => {
     e.preventDefault();
-    const lag = (rolle() === "trener_pluss" ? $("#tf-lagsel").value : $("#tf-lag").value).trim();
-    const t = { lag, anleggId: $("#tf-anlegg").value, delbaneId: $("#tf-del").value, ukedag: +$("#tf-dag").value,
-      fra: $("#tf-fra").value, til: $("#tf-til").value, fom: $("#tf-fom").value, tom: $("#tf-tom").value, merknad: $("#tf-merk").value.trim(),
-      avlyst: S.editTrain ? (S.treninger[S.editTrain]?.avlyst || []) : [] };
+    const t = trainFromForm();
     const msg = $("#tf-msg");
     if (!t.lag) { msg.innerHTML = `<span class="err">Skriv inn laget.</span>`; return; }
-    if (!(S.editTrain ? canEditTraining(t) && canEditTraining(S.treninger[S.editTrain] || t) : canCreateTraining() && (isAdmin() || myLag().includes(t.lag)))) { msg.innerHTML = `<span class="err">Du kan bare legge inn treninger for egne lag.</span>`; return; }
+    if (t.type === "fast" && !isAdmin()) { msg.innerHTML = `<span class="err">Faste treningstider må søkes om hos admin under Forespørsler.</span>`; return; }
+    if (!(S.editTrain ? canEditTraining(t) && canEditTraining(S.treninger[S.editTrain] || t) : canCreateTraining(t.type) && (isAdmin() || myLag().includes(t.lag)))) { msg.innerHTML = `<span class="err">Du kan bare legge inn treninger for egne lag.</span>`; return; }
     if (!t.anleggId || !t.delbaneId) { msg.innerHTML = `<span class="err">Velg anlegg og del av banen. Mangler de, legg dem til under Baner.</span>`; return; }
     if (toMin(t.til) <= toMin(t.fra)) { msg.innerHTML = `<span class="err">Sluttid må være etter starttid.</span>`; return; }
-    if (t.tom < t.fom) { msg.innerHTML = `<span class="err">«Gjelder til» må være etter «Gjelder fra».</span>`; return; }
+    if (t.type === "fast" && (!t.fom || !t.tom)) { msg.innerHTML = `<span class="err">Velg periode fra og til, så treningen ikke gjentas i det uendelige.</span>`; return; }
+    if (t.type === "fast" && t.tom < t.fom) { msg.innerHTML = `<span class="err">«Periode til» må være etter «Periode fra».</span>`; return; }
+    if (t.type === "enkelt" && !t.dato) { msg.innerHTML = `<span class="err">Velg dato.</span>`; return; }
     try {
       const id = S.editTrain || "t-" + uid(); await S.backend.put("treninger", id, t);
-      msg.innerHTML = `<span class="ok">Lagret: ${esc(t.lag)}, ${DAGER[t.ukedag - 1]} ${t.fra}–${t.til}.</span>`;
+      msg.innerHTML = `<span class="ok">Lagret: ${esc(t.lag)}, ${t.type === "enkelt" ? fmtDate(t.dato) : "hver " + DAGER[t.ukedag - 1] + ` til ${fmtDate(t.tom)}`} ${t.fra}–${t.til}.</span>`;
       stopEdit(); $("#tf-lag").value = ""; $("#tf-merk").value = "";
     } catch (err) { msg.innerHTML = `<span class="err">${esc(errText(err))}</span>`; }
   };
   $("#tf-cancel").onclick = () => { stopEdit(); $("#tf-msg").textContent = ""; applyRoleUI(); };
-  const prev = () => {
-    const r = { type: "fast", anleggId: $("#tf-anlegg").value, delbaneId: $("#tf-del").value, ukedag: +$("#tf-dag").value, fra: $("#tf-fra").value, til: $("#tf-til").value, fom: $("#tf-fom").value, tom: $("#tf-tom").value };
-    $("#tf-coll").innerHTML = requestDates(r).length ? collisionHtml(collisions(r, S.editTrain)) : "";
-  };
+  const prev = () => { const r = trainFromForm(); $("#tf-coll").innerHTML = requestDates(r).length ? collisionHtml(collisions(r, S.editTrain)) : ""; };
   $("#tf").addEventListener("input", prev); $("#tf").addEventListener("change", prev);
+}
+function trainFromForm() {
+  const lag = (rolle() === "trener_pluss" ? $("#tf-lagsel").value : $("#tf-lag").value).trim(), type = $("#tf-type").value || "enkelt";
+  const t = { type, lag, anleggId: $("#tf-anlegg").value, delbaneId: $("#tf-del").value, fra: $("#tf-fra").value, til: $("#tf-til").value, merknad: $("#tf-merk").value.trim() };
+  if (type === "enkelt") t.dato = $("#tf-dato").value;
+  else Object.assign(t, { ukedag: +$("#tf-dag").value, fom: $("#tf-fom").value, tom: $("#tf-tom").value, avlyst: S.editTrain ? (S.treninger[S.editTrain]?.avlyst || []) : [] });
+  return t;
+}
+function syncTrainType() { const v = $("#tf-type").value; $$("#tf [data-tt]").forEach(el => { el.hidden = el.dataset.tt !== v; }); }
+// Hurtigvalg for periode på faste treninger
+function periodPresets() {
+  const y = new Date().getFullYear(), m = new Date().getMonth(), ny = m >= 10 ? y + 1 : y;
+  return [["Ut året", ymd(new Date()), `${y}-12-31`], ["Vårsesong", `${ny}-03-01`, `${ny}-06-30`], ["Høstsesong", `${ny}-08-01`, `${ny}-10-31`], ["Hele sesongen", `${ny}-03-01`, `${ny}-10-31`]];
+}
+function initPresets() {
+  $$("[data-preset-for]").forEach(box => {
+    const f = box.dataset.presetFor;
+    box.innerHTML = periodPresets().map(([n, a, b]) => `<button type="button" data-from="${a}" data-to="${b}">${n} <span class="muted num">${fmtDate(a).slice(4)} – ${fmtDate(b).slice(4)}</span></button>`).join("");
+    box.addEventListener("click", e => { const b = e.target.closest("[data-from]"); if (!b) return; $(`#${f}-fom`).value = b.dataset.from; $(`#${f}-tom`).value = b.dataset.to; $(`#${f}`).dispatchEvent(new Event("change")); });
+  });
 }
 function editTraining(id) {
   const t = S.treninger[id]; if (!t || !canEditTraining(t)) return; S.editTrain = id; show("treninger"); applyRoleUI();
   $("#tfTitle").textContent = "Rediger treningstid"; $("#tf-save").textContent = "Lagre endringer"; $("#tf-cancel").hidden = false;
   $("#tf-lag").value = t.lag; if (rolle() === "trener_pluss") $("#tf-lagsel").value = t.lag; $("#tf-anlegg").value = t.anleggId; delOptions($("#tf-del"), anlegg(t.anleggId), t.delbaneId);
-  $("#tf-dag").value = t.ukedag; $("#tf-fra").value = t.fra; $("#tf-til").value = t.til; $("#tf-fom").value = t.fom; $("#tf-tom").value = t.tom; $("#tf-merk").value = t.merknad || "";
+  $("#tf-type").value = isEnkelt(t) ? "enkelt" : "fast"; syncTrainType();
+  if (isEnkelt(t)) $("#tf-dato").value = t.dato; else { $("#tf-dag").value = t.ukedag; $("#tf-fom").value = t.fom; $("#tf-tom").value = t.tom; }
+  $("#tf-fra").value = t.fra; $("#tf-til").value = t.til; $("#tf-merk").value = t.merknad || "";
   let del = $("#tf-delete"); if (!del) { del = document.createElement("button"); del.type = "button"; del.className = "btn danger"; del.id = "tf-delete"; del.textContent = "Slett treningstid"; $("#tf-cancel").after(del);
     confirmBtn(del, "Bekreft sletting", async () => { await S.backend.del("treninger", S.editTrain); stopEdit(); $("#tf-msg").innerHTML = `<span class="ok">Treningstiden er slettet.</span>`; }); }
   del.hidden = false; del.disabled = false; $("#tf").dispatchEvent(new Event("change")); (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus();
 }
-function stopEdit() { S.editTrain = null; if ($("#tf-coll")) $("#tf-coll").innerHTML = ""; $("#tfTitle").textContent = "Ny fast treningstid"; $("#tf-save").textContent = "Lagre treningstid"; $("#tf-cancel").hidden = true; const d = $("#tf-delete"); if (d) { d.hidden = true; delete d.dataset.armed; d.textContent = "Slett treningstid"; d.disabled = false; } }
+function stopEdit() { S.editTrain = null; if ($("#tf-coll")) $("#tf-coll").innerHTML = ""; $("#tfTitle").textContent = "Ny treningstid"; $("#tf-save").textContent = "Lagre treningstid"; $("#tf-cancel").hidden = true; const d = $("#tf-delete"); if (d) { d.hidden = true; delete d.dataset.armed; d.textContent = "Slett treningstid"; d.disabled = false; } }
 
 // ---------- forespørsler ----------
 function initRequestForm() {
@@ -1213,7 +1299,8 @@ function initRequestForm() {
     if (!canRequest() || !myLag().includes(r.lag)) { msg.innerHTML = `<span class="err">Velg et av lagene dine.</span>`; return; }
     if (!r.anleggId || !r.delbaneId) { msg.innerHTML = `<span class="err">Velg anlegg og del av banen.</span>`; return; }
     if (toMin(r.til) <= toMin(r.fra)) { msg.innerHTML = `<span class="err">Sluttid må være etter starttid.</span>`; return; }
-    if (r.type === "fast" && r.tom < r.fom) { msg.innerHTML = `<span class="err">«Gjelder til» må være etter «Gjelder fra».</span>`; return; }
+    if (r.type === "fast" && (!r.fom || !r.tom)) { msg.innerHTML = `<span class="err">Velg periode fra og til.</span>`; return; }
+    if (r.type === "fast" && r.tom < r.fom) { msg.innerHTML = `<span class="err">«Periode til» må være etter «Periode fra».</span>`; return; }
     if (!requestDates(r).length) { msg.innerHTML = `<span class="err">Perioden inneholder ingen ${DAGER[r.ukedag - 1]}er.</span>`; return; }
     Object.assign(r, { status: "ny", epost: S.me.epost, navn: S.me.navn || S.me.epost, opprettet: new Date().toISOString() });
     $("#rf-send").disabled = true;
@@ -1281,15 +1368,10 @@ async function handleRequest(id, act, btn) {
     const done = { ...clone(r), svar, behandletAv: S.me.navn || S.me.epost, behandlet: new Date().toISOString() };
     if (act === "godkjenn") {
       let resultatId;
-      if (r.type === "enkelt") {
-        resultatId = "b-" + uid();
-        await S.backend.put("kamper", resultatId, { kilde: "manuell", tittel: r.lag, lag: r.lag, dato: r.dato, tid: r.fra, varighet: toMin(r.til) - toMin(r.fra),
-          anleggId: r.anleggId, delbaneId: r.delbaneId, merknad: r.merknad || "", fraForesporsel: id });
-      } else {
-        resultatId = "t-" + uid();
-        await S.backend.put("treninger", resultatId, { lag: r.lag, anleggId: r.anleggId, delbaneId: r.delbaneId, ukedag: r.ukedag, fra: r.fra, til: r.til,
-          fom: r.fom, tom: r.tom, merknad: r.merknad || "", avlyst: [], fraForesporsel: id });
-      }
+      resultatId = "t-" + uid();
+      await S.backend.put("treninger", resultatId, r.type === "enkelt"
+        ? { type: "enkelt", lag: r.lag, anleggId: r.anleggId, delbaneId: r.delbaneId, dato: r.dato, fra: r.fra, til: r.til, merknad: r.merknad || "", fraForesporsel: id }
+        : { type: "fast", lag: r.lag, anleggId: r.anleggId, delbaneId: r.delbaneId, ukedag: r.ukedag, fra: r.fra, til: r.til, fom: r.fom, tom: r.tom, merknad: r.merknad || "", avlyst: [], fraForesporsel: id });
       Object.assign(done, { status: "godkjent", resultatId });
     } else done.status = "avslatt";
     await S.backend.put("foresporsler", id, done);
@@ -1612,6 +1694,14 @@ $("#strip").onclick = e => { const b = e.target.closest("[data-week]"); if (!b) 
 $("#addTrain").onclick = () => { stopEdit(); show("treninger"); applyRoleUI(); if (S.anleggId) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), defaultPart(curA(), S.baneId)); } (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus(); };
 $("#addBooking").onclick = () => newBooking(ymd(S.week));
 $("#addRequest").onclick = () => newRequest(null);
+$("#addTK").onclick = () => treningskampDialog(null, ymd(S.week));
+function newEnkelt(date, minutes) {
+  stopEdit(); show("treninger"); applyRoleUI(); $("#tf-type").value = "enkelt"; syncTrainType();
+  if (S.anleggId) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), defaultPart(curA(), S.baneId)); }
+  if (date) $("#tf-dato").value = date;
+  if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#tf-fra").value = fromMin(st); $("#tf-til").value = fromMin(Math.min(st + 90, 23 * 60)); }
+  $("#tf").dispatchEvent(new Event("change")); (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus();
+}
 $("#tfInfoReq").onclick = () => newRequest(null);
 $("#tlMine").onchange = renderTrainList;
 $("#rList").addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (!b) return; handleRequest(b.closest("[data-rid]").dataset.rid, b.dataset.act, b); });
@@ -1620,10 +1710,10 @@ $("#grid").addEventListener("click", e => {
   if (dh) { S.day = S.day == null ? +dh.dataset.dayidx : null; renderWeek(); return; }
   const b = e.target.closest(".blk");
   if (b) { if (b.dataset.type === "trening") showTraining(b.dataset.id, b.dataset.date); else if (b.dataset.type === "foresp") show("foresporsler"); else showKamp(b.dataset.id); return; }
-  const day = e.target.closest(".day"); if (!day || !(isAdmin() || canRequest())) return;
+  const day = e.target.closest(".day"); if (!day || !(isAdmin() || canRequest() || isPluss())) return;
   const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   const y = e.clientY - day.getBoundingClientRect().top; const min = DAY_START + y / hpx * 60;
-  isAdmin() ? newBooking(day.dataset.date, min) : newRequest(day.dataset.date, min);
+  isAdmin() ? newBooking(day.dataset.date, min) : isPluss() ? newEnkelt(day.dataset.date, min) : newRequest(day.dataset.date, min);
 });
 $("#tList").addEventListener("click", e => { const tr = e.target.closest("[data-tid]"); if (!tr) return; const t = S.treninger[tr.dataset.tid]; if (t && canEditTraining(t)) editTraining(tr.dataset.tid); else showTraining(tr.dataset.tid, null); });
 $("#kList").addEventListener("click", e => { const tr = e.target.closest("[data-kid]"); if (tr) showKamp(tr.dataset.kid); });
@@ -1637,7 +1727,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initTrainForm(); initOppsett(); initRequestForm(); initUsers(); renderAll();
+initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {
