@@ -236,5 +236,7 @@ insert into public.config (id, data) values ('oppsett', '{
 }'::jsonb)
 on conflict (id) do nothing;
 
--- Legg inn redaktører (de som får endre). Bytt ut adressen og kjør linjen:
--- insert into public.redaktorer (epost, navn) values ('navn@eksempel.no', 'Banekoordinator');
+-- Legg inn den første admin. Bytt ut e-postadressen (to steder, små bokstaver i id) og navnet, og kjør:
+-- insert into public.brukere (id, data) values
+--   ('navn@eksempel.no', '{"epost": "navn@eksempel.no", "navn": "Banekoordinator", "rolle": "admin", "lag": []}');
+-- Flere admins og trenere legges til fra nettsiden (fanen Brukere) etter innlogging.

@@ -6,9 +6,22 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 
 | Når | Lagring |
 |---|---|
-| Supabase-adresse og nøkkel er fylt inn i `index.html` | Delt database i Supabase. Alle kan se, innloggede redaktører kan endre. Kamper hentes automatisk hver natt. |
-| Siden er publisert som Claude-artefakt | Delt lagring i artefakten |
-| Ellers (fila åpnet direkte) | Bare i nettleseren på denne maskinen |
+| Supabase-adresse og nøkkel er fylt inn i `index.html` | Delt database i Supabase. Rollene under håndheves av databasen. Kamper hentes automatisk hver natt. |
+| Siden er publisert som Claude-artefakt | Delt lagring i artefakten. **Testmodus**: velgeren «Vis som» viser siden slik hver rolle ser den, men rollene håndheves ikke. |
+| Ellers (fila åpnet direkte) | Bare i nettleseren på denne maskinen, også i testmodus |
+
+## Roller
+
+| Rolle | Kan |
+|---|---|
+| Besøkende (ikke innlogget) | Se ukevisning og kampliste. Merknader er skjult. |
+| Trener | Avlyse enkeltdager og slette treningstider og bookinger for egne lag. Søke om banetid. |
+| Trener+ | Alt en trener kan, og i tillegg legge inn og endre faste treningstider for egne lag. |
+| Admin | Alt: brukere og lag, treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
+
+En forespørsel gjelder enten en fast ukentlig tid eller én dag. Både treneren og admin ser med en gang om tiden kolliderer med noe. Når admin godkjenner, blir forespørselen automatisk en treningstid eller en booking, og treneren ser svaret under Forespørsler.
+
+Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
 
 ## Oppsett med Supabase
 
@@ -19,11 +32,12 @@ Regn med rundt en halvtime. Du trenger en Supabase-konto (gratis), tilgang til d
 1. Gå til [supabase.com](https://supabase.com) og velg **New project**. Velg region **Stockholm (eu-north-1)**, så ligger dataene i EU.
 2. Åpne **SQL Editor**, lim inn hele `supabase/schema.sql` og trykk **Run**.
 3. Gjør det samme med `supabase/seed.sql`. Den legger inn Høland idrettsanlegg og Bjørkelangen kunstgress med delbaner.
-4. Legg inn redaktørene, altså de som skal kunne endre. Kjør én linje per person i SQL Editor:
+4. Legg inn den første admin. Bruk små bokstaver i e-postadressen, og kjør i SQL Editor:
    ```sql
-   insert into public.redaktorer (epost, navn) values ('navn@eksempel.no', 'Banekoordinator');
+   insert into public.brukere (id, data) values
+     ('navn@eksempel.no', '{"epost": "navn@eksempel.no", "navn": "Banekoordinator", "rolle": "admin", "lag": []}');
    ```
-   Redaktører fjernes med `delete from public.redaktorer where epost = 'navn@eksempel.no';`.
+   Flere admins og alle trenere legges deretter til fra nettsiden, under fanen **Brukere**. Databasen sørger for at det alltid finnes minst én admin.
 
 ### 2. Innlogging på e-post
 
@@ -63,11 +77,11 @@ Skriptet kan kjøres lokalt med `pip install openpyxl` og `python scripts/hent_k
 
 ## Drift
 
-- **Ny redaktør:** legg til e-postadressen i tabellen `redaktorer`, som i steg 1.
-- **Nytt anlegg:** en redaktør legger det inn under **Baner** på nettsiden, med anleggs-ID fra fotball.no. Neste natt hentes kampene.
+- **Ny admin eller trener:** en admin legger personen til under **Brukere** på nettsiden. Personen logger inn med e-postadressen sin.
+- **Nytt anlegg:** en admin legger det inn under **Baner** på nettsiden, med anleggs-ID fra fotball.no. Neste natt hentes kampene.
 - **Feil i hentingen:** GitHub sender e-post når en kjøring feiler. Loggen ligger under Actions.
 - **Pause i gratisprosjekter:** Supabase pauser gratisprosjekter som ikke er brukt på en uke. Den nattlige hentingen bruker databasen hver dag.
 
 ## Personvern
 
-Banedagboken skal bare inneholde lagnavn, tider og baner. Ikke skriv telefonnumre, navn på spillere eller annen personinformasjon i merknadsfeltene. Redaktørenes e-postadresser ligger i Supabase og vises ikke for andre.
+Banedagboken skal bare inneholde lagnavn, tider og baner. Ikke skriv telefonnumre, navn på spillere eller annen personinformasjon i merknadsfeltene. Brukernes e-postadresser ligger i Supabase og vises bare for admins. Forespørsler vises bare for admins og den som sendte dem.
