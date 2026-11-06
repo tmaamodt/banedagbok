@@ -167,12 +167,17 @@ def les_kamper(xlsx: bytes) -> list[dict]:
 
 # ---------------------------------------------------------------- domene (samme regler som nettsiden)
 def gjett_delbane(navn: str) -> dict:
+    """Plassering på banen i tolvdeler. Banen er fire kvarter à 3: 9er = halvdel, 7er og 5er = kvarter.
+    «5er A–H» ligger to per kvarter (A,B → 1. kvarter, C,D → 2. …), slik kampdataene fra fotball.no viser."""
     m = re.search(r"(\d{1,2})\s*er\s*([A-L])\b", navn, re.I)
     if m:
         size, idx = int(m.group(1)), ord(m.group(2).upper()) - 65
-        w = 6 if size >= 9 else 3 if size >= 7 else 2 if size >= 5 else 1
-        return {"navn": f"{size}er {m.group(2).upper()}", "start": min(12 - w, idx * w), "bredde": w}
-    return {"navn": "Hele banen", "start": 0, "bredde": 12}
+        if size >= 9:
+            return {"start": min(1, idx) * 6, "bredde": 6}
+        if size >= 7:
+            return {"start": min(3, idx) * 3, "bredde": 3}
+        return {"start": min(3, idx // (2 if size >= 5 else 3)) * 3, "bredde": 3}
+    return {"start": 0, "bredde": 12}
 
 
 def ny_id(prefix: str) -> str:
@@ -193,11 +198,9 @@ def finn_delbane(cfg: dict, anlegg: dict, banenavn: str) -> tuple[dict, dict, bo
                 return a, d, False
     g = gjett_delbane(banenavn)
     dels = anlegg.setdefault("delbaner", [])
-    d = next((x for x in dels if x["navn"].lower() == g["navn"].lower()), None)
-    if d is None and g["bredde"] == 12:
-        d = next((x for x in dels if x["start"] == 0 and x["bredde"] == 12), None)
+    d = next((x for x in dels if x["start"] == g["start"] and x["bredde"] == g["bredde"]), None)
     if d is None:
-        d = {"id": ny_id("d"), "navn": g["navn"], "start": g["start"], "bredde": g["bredde"], "alias": []}
+        d = {"id": ny_id("d"), "navn": banenavn, "start": g["start"], "bredde": g["bredde"], "alias": []}
         dels.append(d)
         dels.sort(key=lambda x: (-x["bredde"], x["start"]))
     d["alias"] = sorted(set(d.get("alias", [])) | {banenavn})

@@ -1,9 +1,21 @@
--- Startoppsett for banedagboken: anleggene og delbanene som brukes i dag.
+-- Startoppsett for banedagboken: anleggene, delbanene og koblingene til banene på fotball.no.
 -- Kjør etter schema.sql. Overskriver ikke et oppsett som allerede finnes.
 -- Kampene hentes av skriptet scripts/hent_kamper.py (GitHub Actions), ikke herfra.
+--
+-- Banen er delt i fire kvarter: 9er A/B er halvdelene, 7er A–D er kvarterene.
+-- 5er-banene på fotball.no ligger i et kvarter (5er C → 7er B, 5er F → 7er C), utledet fra hvilke
+-- baner som er i bruk samtidig i kampoppsettet. Koblingene kan endres under Baner på nettsiden.
 
 insert into public.config (id, data) values ('oppsett', '{
   "klubb": "",
+  "lag": [],
+  "varighet": {
+    "3": 45,
+    "5": 60,
+    "7": 75,
+    "9": 90,
+    "11": 120
+  },
   "anlegg": [
     {
       "id": "a-holand",
@@ -49,7 +61,9 @@ insert into public.config (id, data) values ('oppsett', '{
           "navn": "7er B",
           "start": 3,
           "bredde": 3,
-          "alias": []
+          "alias": [
+            "Høland stadion kg 5er C"
+          ]
         },
         {
           "id": "d-7c",
@@ -66,50 +80,6 @@ insert into public.config (id, data) values ('oppsett', '{
           "alias": [
             "Høland stadion kg 7er D"
           ]
-        },
-        {
-          "id": "d-5a",
-          "navn": "5er A",
-          "start": 0,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5b",
-          "navn": "5er B",
-          "start": 2,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5c",
-          "navn": "5er C",
-          "start": 4,
-          "bredde": 2,
-          "alias": [
-            "Høland stadion kg 5er C"
-          ]
-        },
-        {
-          "id": "d-5d",
-          "navn": "5er D",
-          "start": 6,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5e",
-          "navn": "5er E",
-          "start": 8,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5f",
-          "navn": "5er F",
-          "start": 10,
-          "bredde": 2,
-          "alias": []
         }
       ]
     },
@@ -159,14 +129,18 @@ insert into public.config (id, data) values ('oppsett', '{
           "navn": "7er B",
           "start": 3,
           "bredde": 3,
-          "alias": []
+          "alias": [
+            "Bjørkelangen kg 5er C"
+          ]
         },
         {
           "id": "d-7c",
           "navn": "7er C",
           "start": 6,
           "bredde": 3,
-          "alias": []
+          "alias": [
+            "Bjørkelangen kg 5er F"
+          ]
         },
         {
           "id": "d-7d",
@@ -176,63 +150,10 @@ insert into public.config (id, data) values ('oppsett', '{
           "alias": [
             "Bjørkelangen kg 7er D"
           ]
-        },
-        {
-          "id": "d-5a",
-          "navn": "5er A",
-          "start": 0,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5b",
-          "navn": "5er B",
-          "start": 2,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5c",
-          "navn": "5er C",
-          "start": 4,
-          "bredde": 2,
-          "alias": [
-            "Bjørkelangen kg 5er C"
-          ]
-        },
-        {
-          "id": "d-5d",
-          "navn": "5er D",
-          "start": 6,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5e",
-          "navn": "5er E",
-          "start": 8,
-          "bredde": 2,
-          "alias": []
-        },
-        {
-          "id": "d-5f",
-          "navn": "5er F",
-          "start": 10,
-          "bredde": 2,
-          "alias": [
-            "Bjørkelangen kg 5er F"
-          ]
         }
       ]
     }
-  ],
-  "varighet": {
-    "11": 120,
-    "9": 90,
-    "7": 75,
-    "5": 60,
-    "3": 45
-  }
+  ]
 }'::jsonb)
 on conflict (id) do nothing;
 
