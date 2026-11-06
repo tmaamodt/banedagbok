@@ -42,6 +42,8 @@ Rødt kollisjonsvarsel gis bare når to treninger, to kamper eller en booking kr
 Treningstidene bruker ofte et fellesnavn, for eksempel «G16», mens gruppen spiller kamper som flere lag på fotball.no. Under fanen **Lag** kobles hver treningsgruppe til lagene sine.
 
 - **Koble lag:** admin kan koble alle grupper, Trener+ bare sine egne lag. Siden foreslår lag med samme årsklasse, gruppert per klubb.
+- **Forslag per klubb:** i klubblista nederst krysser admin av hvilke klubber som skal gi forslag. En klubb som bare er hentet for enkelte kamper, kan slås av, så lagene dens ikke dukker opp.
+- **Lag fra andre klubber**, for eksempel samarbeidslag, legges til på gruppen med **lag-ID** fra fotball.no. ID-en står i adressen til laget (`…/lag/hjem/?fiksId=4530`). Henteskriptet henter lagets kamper hver natt. Til da vises laget som «venter på henting». Admin kan også importere lagets Excel-fil for hånd.
 - **Visning:** for valgt gruppe vises treninger, treningskamper og lagenes kamper, hjemme og borte, samlet per dato i fire uker om gangen.
 - **Klubbenes kamper:** henteskriptet henter alle kampene til klubbene i lista nederst på siden hver natt. Kampene lagres samlet per klubb og måned i tabellen `lagkamper`. Admin kan også importere klubbens Excel-fil for hånd under «Hent fra fotball.no».
 - **Filteret «Vis lagenes kamper»** i ukevisningen gjør to ting:

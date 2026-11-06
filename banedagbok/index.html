@@ -369,7 +369,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <div class="grplist" id="grpList"></div>
         <div id="klubbAdmin" hidden style="display:grid;gap:8px;margin-top:10px">
           <h3>Klubber som hentes fra fotball.no</h3>
-          <p class="note">Alle kampene til disse klubbene hentes, også bortekamper. Klubb-ID står i adressen til klubben på fotball.no (…/klubb/hjem/?fiksId=109).</p>
+          <p class="note">Alle kampene til disse klubbene hentes, også bortekamper. Klubb-ID står i adressen til klubben på fotball.no (…/klubb/hjem/?fiksId=109). Kryss av for klubbene som skal gi forslag når treningsgrupper kobles. Lag fra andre klubber, for eksempel samarbeidslag, legges til med lag-ID på hver gruppe.</p>
           <div class="chips" id="klubbChips"></div>
           <form class="bar" id="klubbf"><input type="text" id="klubbf-navn" placeholder="Klubbnavn" style="width:14ch" aria-label="Klubbnavn"><input type="text" id="klubbf-id" placeholder="Klubb-ID" inputmode="numeric" style="width:9ch" aria-label="Klubb-ID"><button class="btn" type="submit">Legg til</button></form>
         </div>
@@ -511,7 +511,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <div class="panel" style="display:grid;gap:12px;min-width:0">
         <h2>Klubbens kamper (også borte)</h2>
         <p class="note">Med Supabase hentes dette automatisk hver natt. Her kan du laste ned og importere for hånd. Perioden er den samme som til venstre.</p>
-        <form class="form" onsubmit="return false"><label>Klubb<select id="ck-klubb"></select></label></form>
+        <form class="form" onsubmit="return false"><label>Klubb eller lag<select id="ck-klubb"></select></label></form>
         <p><a class="btn" id="ck-link" target="_blank" rel="noopener" href="#">Last ned klubbens kamper ↗</a></p>
         <label class="btn rw" style="justify-self:start">Importer Excel-fila<input type="file" id="ck-file" accept=".xlsx,.xls" hidden></label>
         <p id="ck-msg" class="note"></p>
@@ -879,20 +879,25 @@ function lagkampList() {
   if (_lkSrc === S.lagkamper) return _lkList;
   _lkSrc = S.lagkamper; _lkList = [];
   for (const doc of Object.values(S.lagkamper)) for (const k of doc.kamper || []) for (const v of k.vare || [])
-    _lkList.push({ ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId });
+    _lkList.push({ ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId, klubbId: doc.klubbId || null, lagId: doc.lagId || null });
   _lkList.sort((x, y) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
   return _lkList;
 }
 const lagKlubb = t => lagkampList().find(k => k.lag === t)?.klubb || "?";
-const alleFotballLag = () => [...new Set(lagkampList().map(k => k.lag))].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+// Klubber kan slås av som forslag (f.eks. klubber som bare er hentet for en enkelt kamp). Lag lagt til med lag-ID tas alltid med.
+const forslagKlubb = id => (S.cfg.klubber || []).find(k => k.fiksId === id)?.forslag !== false;
+const alleFotballLag = () => [...new Set(lagkampList().filter(k => k.lagId || forslagKlubb(k.klubbId)).map(k => k.lag))].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+// Lag lagt til med lag-ID på fotball.no: navnet finnes først når kampene er hentet
+const teamsForId = id => [...new Set(lagkampList().filter(k => k.lagId === String(id)).map(k => k.lag))];
+const grpTeams = g => [...new Set([...(g?.fotballLag || []), ...(g?.lagIder || []).flatMap(teamsForId)])];
 const klasseToken = lag => { const m = /^([GJ])\s?0?(\d{1,2})/i.exec(lag || ""); return m ? m[1].toUpperCase() + m[2] : /herre/i.test(lag) ? "Herrer" : /dame/i.test(lag) ? "Damer" : null; };
 // Spiller et av gruppens lag kamp (et annet sted eller på en annen del) som overlapper treningen?
 // Vindu: hjemme på samme anlegg 30 min før til kampslutt, ellers 60 min før til 60 min etter (reise).
 function lagOpptatt(lagNavn, date, start, end, anleggId) {
-  const g = gruppe(lagNavn); if (!g || !(g.fotballLag || []).length) return null;
+  const g = gruppe(lagNavn), teams = grpTeams(g); if (!teams.length) return null;
   const a = anlegg(anleggId), hits = [];
   for (const k of lagkampList()) {
-    if (k.dato !== date || !g.fotballLag.includes(k.lag)) continue;
+    if (k.dato !== date || !teams.includes(k.lag)) continue;
     const kick = toMin(k.tid); if (kick == null) continue;
     const dur = kampVarighet({ spillform: k.spillform }), here = !!(a && a.delbaner.some(d => (d.alias || []).includes(k.bane)));
     const w0 = kick - (here ? 30 : 60), w1 = kick + dur + (here ? 0 : 60);
@@ -900,7 +905,7 @@ function lagOpptatt(lagNavn, date, start, end, anleggId) {
   }
   if (!hits.length) return null;
   const busy = new Set(hits.map(h => h.lag));
-  return { status: g.fotballLag.every(l => busy.has(l)) ? "borte" : "delvis", hits };
+  return { status: teams.every(l => busy.has(l)) ? "borte" : "delvis", hits };
 }
 const kampTekst = k => `${k.hjemme ? "hjemme mot " + esc((k.borte || "").trim()) : "borte mot " + esc((k.hjem || "").trim())}, ${esc(k.bane || "")}`;
 
@@ -1128,13 +1133,13 @@ function renderWeek() {
   // lagenes kamper (filter): treninger der laget har kamp et annet sted er trolig ledige
   const lk = $("#lkPanel"); lk.hidden = !S.showLK;
   if (S.showLK) {
-    const grpHere = new Set(items.filter(it => it.type === "trening").map(it => it.label).filter(l => gruppe(l)?.fotballLag?.length));
+    const grpHere = new Set(items.filter(it => it.type === "trening").map(it => it.label).filter(l => grpTeams(gruppe(l)).length));
     const weekDays = [...Array(7)].map((_, i) => ymd(addDays(ws, i)));
-    const rows = lagkampList().filter(k => weekDays.includes(k.dato) && [...grpHere].some(l => gruppe(l).fotballLag.includes(k.lag)));
-    const ingenGrupper = !Object.values(S.grupper).some(g => (g.fotballLag || []).length);
+    const rows = lagkampList().filter(k => weekDays.includes(k.dato) && [...grpHere].some(l => grpTeams(gruppe(l)).includes(k.lag)));
+    const ingenGrupper = !Object.values(S.grupper).some(g => (g.fotballLag || []).length || (g.lagIder || []).length);
     lk.innerHTML = `<b>Lagenes kamper denne uka</b>${ingenGrupper ? `<span class="note">Ingen treningsgrupper er koblet til lag på fotball.no ennå. Det gjøres under fanen Lag.</span>`
       : !Object.keys(S.lagkamper).length ? `<span class="note">Klubbenes kamper er ikke hentet ennå (skjer automatisk hver natt med Supabase, eller importer under «Hent fra fotball.no»).</span>`
-      : rows.length ? rows.map(k => `<div class="row"><span class="num">${fmtDate(k.dato)} ${esc(k.tid)}</span><span><span class="pill ${k.hjemme ? "kamp" : "borte"}">${k.hjemme ? "Hjemme" : "Borte"}</span></span><span><b>${esc(k.lag)}</b> (${esc([...grpHere].filter(l => gruppe(l).fotballLag.includes(k.lag)).join(", "))}) ${kampTekst(k)}</span></div>`).join("")
+      : rows.length ? rows.map(k => `<div class="row"><span class="num">${fmtDate(k.dato)} ${esc(k.tid)}</span><span><span class="pill ${k.hjemme ? "kamp" : "borte"}">${k.hjemme ? "Hjemme" : "Borte"}</span></span><span><b>${esc(k.lag)}</b> (${esc([...grpHere].filter(l => grpTeams(gruppe(l)).includes(k.lag)).join(", "))}) ${kampTekst(k)}</span></div>`).join("")
       : `<span class="note">Ingen kamper denne uka for gruppene som trener her.</span>`}`;
   }
   const vk = [...new Map((pairs.viker || []).map(([t, k]) => [t, [t, k]])).values()]; // én linje per trening, selv om den viker for flere kamper
@@ -1212,9 +1217,12 @@ function renderKampList() {
     : `<tr><td colspan="6" class="muted">${fut ? "Ingen kommende kamper. Hent kampoversikten under «Hent fra fotball.no», eller fjern haken for «Bare kommende»." : "Ingen kamper ennå."}</td></tr>`;
 }
 function renderImport() {
-  { const v = $("#ck-klubb").value; $("#ck-klubb").innerHTML = (S.cfg.klubber || []).map(k => `<option value="${esc(k.fiksId)}">${esc(k.navn)}</option>`).join(""); if (v) $("#ck-klubb").value = v;
-    const kl = (S.cfg.klubber || []).find(k => k.fiksId === $("#ck-klubb").value), l = $("#ck-link");
-    if (kl) { const u = new URL("https://www.fotball.no/footballapi/Calendar/DownloadClubExcelCalendar"); u.searchParams.set("clubId", kl.fiksId); u.searchParams.set("heading", "Kamper for " + kl.navn);
+  { const v = $("#ck-klubb").value, lagIder = [...new Set(Object.values(S.grupper).flatMap(g => g.lagIder || []))];
+    $("#ck-klubb").innerHTML = `<optgroup label="Klubber">${(S.cfg.klubber || []).map(k => `<option value="k:${esc(k.fiksId)}">${esc(k.navn)}</option>`).join("")}</optgroup>`
+      + (lagIder.length ? `<optgroup label="Lag lagt til med lag-ID">${lagIder.map(id => `<option value="l:${esc(id)}">${esc(teamsForId(id).join(", ") || "Lag-ID " + id)}</option>`).join("")}</optgroup>` : "");
+    if (v) $("#ck-klubb").value = v;
+    const [typ, cid] = ($("#ck-klubb").value || "").split(":"), kl = typ === "l" ? { fiksId: cid, navn: "lag " + cid } : (S.cfg.klubber || []).find(k => k.fiksId === cid), l = $("#ck-link");
+    if (kl) { const u = new URL(`https://www.fotball.no/footballapi/Calendar/${typ === "l" ? "DownloadTeamExcelCalendar" : "DownloadClubExcelCalendar"}`); u.searchParams.set(typ === "l" ? "teamId" : "clubId", kl.fiksId); u.searchParams.set("heading", "Kamper for " + kl.navn);
       u.searchParams.set("fromDate", $("#dl-fra").value || ymd(new Date())); u.searchParams.set("toDate", $("#dl-til").value || ymd(new Date())); l.href = u.toString(); l.style.pointerEvents = ""; }
     else { l.href = "#"; l.style.pointerEvents = "none"; } }
   $("#autoNote").hidden = S.backend?.name !== "supabase";
@@ -1671,21 +1679,24 @@ function renderLag() {
   $("#grpMineWrap").hidden = !isTrainer();
   const names = [...new Set([...(S.cfg.lag || []), ...Object.values(S.grupper).map(g => g.lag)])].filter(l => !mine || myLag().includes(l)).sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
   if (!S.lagSel || !names.includes(S.lagSel)) S.lagSel = names[0] || null;
-  $("#grpList").innerHTML = names.length ? names.map(l => { const g = gruppe(l), n = (g?.fotballLag || []).length;
-    return `<button type="button" data-grp="${esc(l)}" aria-pressed="${l === S.lagSel}"><b>${esc(l)}</b><small>${n ? esc(g.fotballLag.join(" · ")) : "Ikke koblet til lag på fotball.no"}</small></button>`; }).join("")
+  $("#grpList").innerHTML = names.length ? names.map(l => { const g = gruppe(l), ts = grpTeams(g), ventende = (g?.lagIder || []).filter(id => !teamsForId(id).length).length;
+    return `<button type="button" data-grp="${esc(l)}" aria-pressed="${l === S.lagSel}"><b>${esc(l)}</b><small>${ts.length || ventende ? esc([...ts, ...(ventende ? [`${ventende} lag venter på henting`] : [])].join(" · ")) : "Ikke koblet til lag på fotball.no"}</small></button>`; }).join("")
     : `<p class="note">Ingen lag ennå. Admin legger inn lag under Brukere, eller de kommer med når en treningsplan lagres.</p>`;
   // klubber (admin)
   $("#klubbAdmin").hidden = !isAdmin();
-  $("#klubbChips").innerHTML = (S.cfg.klubber || []).map(k => `<span class="chip">${esc(k.navn)} <span class="muted num">${esc(k.fiksId)}</span><button type="button" data-kdel="${esc(k.fiksId)}" aria-label="Fjern ${esc(k.navn)}">✕</button></span>`).join("") || `<span class="note">Ingen klubber.</span>`;
+  $("#klubbChips").innerHTML = (S.cfg.klubber || []).map(k => `<span class="chip"><label style="display:flex;gap:4px;align-items:center;font-weight:400" title="Vis klubbens lag som forslag når treningsgrupper kobles"><input type="checkbox" data-kforslag="${esc(k.fiksId)}"${k.forslag !== false ? " checked" : ""}> ${esc(k.navn)}</label> <span class="muted num">${esc(k.fiksId)}</span><button type="button" data-kdel="${esc(k.fiksId)}" aria-label="Fjern ${esc(k.navn)}">✕</button></span>`).join("") || `<span class="note">Ingen klubber.</span>`;
   const l = S.lagSel; $("#grpTitle").textContent = l || "Velg en treningsgruppe";
   const we = addDays(S.lagWeek, 27); $("#grpRange").textContent = `${fmtDate(ymd(S.lagWeek))} – ${fmtDate(ymd(we))}`;
   if (!l) { $("#grpTeams").innerHTML = ""; $("#grpSched").innerHTML = ""; return; }
   // koblede lag
-  const g = gruppe(l), linked = g?.fotballLag || [], can = canEditGroup(l), alle = alleFotballLag();
+  const g = gruppe(l), linked = g?.fotballLag || [], ider = g?.lagIder || [], can = canEditGroup(l), alle = alleFotballLag().filter(t => !grpTeams(g).includes(t));
   const tok = klasseToken(l), forslag = alle.filter(t => !linked.includes(t) && tok && t.startsWith(tok + " ")), rest = alle.filter(t => !linked.includes(t) && !forslag.includes(t));
   // forslag per klubb, så en gruppe ikke kobles til andre klubbers lag ved et uhell
   const perKlubb = {}; for (const t of forslag) { const k = lagKlubb(t); (perKlubb[k] ||= []).push(t); }
-  $("#grpTeams").innerHTML = `<div class="chips">${linked.map(t => `<span class="chip" style="padding-right:${can ? 4 : 10}px">${esc(t)}${can ? `<button type="button" data-unlink="${esc(t)}" aria-label="Fjern ${esc(t)}">✕</button>` : ""}</span>`).join("") || `<span class="note">Ingen lag på fotball.no er koblet til ${esc(l)}.</span>`}</div>
+  $("#grpTeams").innerHTML = `<div class="chips">${linked.map(t => `<span class="chip" style="padding-right:${can ? 4 : 10}px">${esc(t)}${can ? `<button type="button" data-unlink="${esc(t)}" aria-label="Fjern ${esc(t)}">✕</button>` : ""}</span>`).join("")}
+      ${ider.map(id => { const ts = teamsForId(id); return `<span class="chip" style="padding-right:${can ? 4 : 10}px" title="Lagt til med lag-ID ${esc(id)}">${ts.length ? esc(ts.join(", ")) : `Lag-ID ${esc(id)} <span class="muted">(kampene hentes i natt)</span>`} <a href="https://www.fotball.no/fotballdata/lag/hjem/?fiksId=${encodeURIComponent(id)}" target="_blank" rel="noopener" class="muted num" style="font-size:11px">#${esc(id)}</a>${can ? `<button type="button" data-unid="${esc(id)}" aria-label="Fjern lag ${esc(id)}">✕</button>` : ""}</span>`; }).join("")}
+      ${!linked.length && !ider.length ? `<span class="note">Ingen lag på fotball.no er koblet til ${esc(l)}.</span>` : ""}</div>
+    ${can ? `<form class="bar" id="grpIdForm"><input type="text" id="grpId" inputmode="numeric" placeholder="Lag-ID" style="width:9ch" aria-label="Lag-ID på fotball.no"><button class="btn" type="submit">Legg til lag fra annen klubb</button><span class="note">Lag-ID står i adressen til laget på fotball.no (…/lag/hjem/?fiksId=4530).</span></form>` : ""}
     ${can ? (alle.length ? `<div class="bar"><select id="grpAdd" aria-label="Lag på fotball.no"><option value="">Koble til lag …</option>${forslag.length ? `<optgroup label="Forslag (${esc(tok)})">${forslag.map(t => `<option>${esc(t)}</option>`).join("")}</optgroup>` : ""}<optgroup label="Alle lag">${rest.map(t => `<option>${esc(t)}</option>`).join("")}</optgroup></select>
         ${Object.entries(perKlubb).map(([k, ts]) => `<button class="btn" type="button" data-addall="${esc(ts.join("|"))}" title="${esc(ts.join(", "))}">Koble ${ts.length} ${esc(tok)}-lag fra ${esc(k)}</button>`).join("")}<span class="note" id="grpMsg"></span></div>`
       : `<p class="note">Klubbenes kamper er ikke hentet ennå, så det finnes ingen lag å koble til.</p>`) : ""}`;
@@ -1701,16 +1712,17 @@ function renderLag() {
   }
   for (const k of Object.values(S.kamper)) if (k.kilde === "treningskamp" && k.lag === l && k.dato >= from && k.dato <= to)
     rows.push({ d: k.dato, t: k.tid, html: `<span class="pill tkamp">Treningskamp</span>`, what: `mot ${esc(k.bortelag || "")} · ${esc(anlegg(k.anleggId)?.navn || "")}` });
-  for (const k of lagkampList()) if (linked.includes(k.lag) && k.dato >= from && k.dato <= to)
+  const lagene = grpTeams(g);
+  for (const k of lagkampList()) if (lagene.includes(k.lag) && k.dato >= from && k.dato <= to)
     rows.push({ d: k.dato, t: k.tid, html: `<span class="pill ${k.hjemme ? "kamp" : "borte"}">${k.hjemme ? "Hjemme" : "Borte"}</span>`, what: `<b>${esc(k.lag)}</b> ${kampTekst(k)}${k.resultat && k.resultat.trim() !== "-" ? ` <span class="num muted">${esc(k.resultat)}</span>` : ""}` });
   rows.sort((x, y) => (x.d + x.t).localeCompare(y.d + y.t));
   let last = "", h = "";
   for (const r of rows) { if (r.d !== last) { h += `<div class="row dag">${fmtDate(r.d)} ${r.d.slice(0, 4)}</div>`; last = r.d; } h += `<div class="row"><span class="num">${esc(r.t)}</span><span>${r.html}</span><span class="what">${r.what}</span></div>`; }
   $("#grpSched").innerHTML = h || `<p class="note">Ingen treninger eller kamper for ${esc(l)} i disse fire ukene.</p>`;
 }
-async function saveGroup(lag, fotballLag) {
+async function saveGroup(lag, fotballLag, lagIder) {
   const id = gruppe(lag) ? Object.entries(S.grupper).find(([, g]) => g.lag === lag)[0] : gruppeId(lag);
-  try { await S.backend.put("grupper", id, { lag, fotballLag }); } catch (e) { const m = $("#grpMsg"); if (m) m.innerHTML = `<span class="err">${esc(errText(e))}</span>`; }
+  try { await S.backend.put("grupper", id, { lag, fotballLag, lagIder: lagIder || gruppe(lag)?.lagIder || [] }); } catch (e) { const m = $("#grpMsg"); if (m) m.innerHTML = `<span class="err">${esc(errText(e))}</span>`; }
 }
 function initLag() {
   $("#grpList").addEventListener("click", e => { const b = e.target.closest("[data-grp]"); if (b) { S.lagSel = b.dataset.grp; saveUi(); renderLag(); } });
@@ -1718,10 +1730,15 @@ function initLag() {
   $("#grpPrev").onclick = () => { S.lagWeek = addDays(S.lagWeek, -28); renderLag(); };
   $("#grpNext").onclick = () => { S.lagWeek = addDays(S.lagWeek, 28); renderLag(); };
   $("#grpToday").onclick = () => { S.lagWeek = monday(new Date()); renderLag(); };
+  $("#grpTeams").addEventListener("submit", e => {
+    if (e.target.id !== "grpIdForm") return; e.preventDefault(); const id = $("#grpId").value.replace(/\D/g, ""), l = S.lagSel; if (!id) return;
+    saveGroup(l, gruppe(l)?.fotballLag || [], [...new Set([...(gruppe(l)?.lagIder || []), id])]);
+  });
   $("#grpTeams").addEventListener("change", e => { if (e.target.id !== "grpAdd" || !e.target.value) return; const l = S.lagSel; saveGroup(l, [...new Set([...(gruppe(l)?.fotballLag || []), e.target.value])]); });
   $("#grpTeams").addEventListener("click", e => {
     const l = S.lagSel, u = e.target.closest("[data-unlink]");
     if (u) saveGroup(l, (gruppe(l)?.fotballLag || []).filter(t => t !== u.dataset.unlink));
+    const ui = e.target.closest("[data-unid]"); if (ui) saveGroup(l, gruppe(l)?.fotballLag || [], (gruppe(l)?.lagIder || []).filter(x => x !== ui.dataset.unid));
     const all = e.target.closest("[data-addall]"); if (all) saveGroup(l, [...new Set([...(gruppe(l)?.fotballLag || []), ...all.dataset.addall.split("|")])]);
   });
   $("#klubbf").onsubmit = async e => {
@@ -1729,6 +1746,8 @@ function initLag() {
     const c = cfgDraft(); c.klubber = [...(c.klubber || []).filter(k => k.fiksId !== id), { fiksId: id, navn }];
     try { await S.backend.saveCfg(c); $("#klubbf-navn").value = ""; $("#klubbf-id").value = ""; } catch (er) { setStatus(esc(errText(er))); }
   };
+  $("#klubbChips").addEventListener("change", e => { const id = e.target.dataset.kforslag; if (!id) return; const on = e.target.checked;
+    saveCfgSoon(c => { const k = (c.klubber || []).find(x => x.fiksId === id); if (k) k.forslag = on; }); renderLag(); });
   $("#klubbChips").addEventListener("click", async e => { const b = e.target.closest("[data-kdel]"); if (!b) return; const c = cfgDraft(); c.klubber = (c.klubber || []).filter(k => k.fiksId !== b.dataset.kdel); await S.backend.saveCfg(c).catch(er => setStatus(esc(errText(er)))); });
   $("#showLK").checked = !!S.showLK;
   $("#showLK").onchange = e => { S.showLK = e.target.checked; saveUi(); renderWeek(); };
@@ -1736,17 +1755,20 @@ function initLag() {
   $("#ck-file").onchange = async e => {
     const f = e.target.files[0], msg = $("#ck-msg"); if (!f) return;
     try {
-      const kl = (S.cfg.klubber || []).find(k => k.fiksId === $("#ck-klubb").value); if (!kl) throw new Error("Velg klubb først.");
+      const [typ, cid] = ($("#ck-klubb").value || "").split(":"), erLag = typ === "l";
+      const kl = erLag ? { fiksId: cid } : (S.cfg.klubber || []).find(k => k.fiksId === cid); if (!kl) throw new Error("Velg klubb eller lag først.");
       const wb = XLSX.read(await f.arrayBuffer(), { type: "array", cellDates: false });
       const list = parseRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" }));
-      const cnt = {}; for (const k of list) for (const w of new Set([k.hjemmelag.split(" ")[0], k.bortelag.split(" ")[0]])) if (w) cnt[w] = (cnt[w] || 0) + 1;
+      // klubb: første ord som går igjen (f.eks. «Bjørkelangen»); enkeltlag: hele lagnavnet som går igjen (f.eks. «Høland Blå»)
+      const cnt = {}; for (const k of list) for (const w of new Set(erLag ? [k.hjemmelag, k.bortelag] : [k.hjemmelag.split(" ")[0], k.bortelag.split(" ")[0]])) if (w) cnt[w] = (cnt[w] || 0) + 1;
       const pre = Object.entries(cnt).sort((x, y) => y[1] - x[1])[0]?.[0] || "";
       const kls = t => { const m = /^\s*([GJ])\s?0?(\d{1,2})\b/i.exec(t || ""); return m ? m[1].toUpperCase() + m[2] : /kvinne|dame|jente/i.test(t || "") ? "Damer" : "Herrer"; };
       const per = {};
       for (const k of list) (per[k.dato.slice(0, 7)] ||= []).push({ kampnr: k.kampnr, dato: k.dato, tid: k.tid, hjem: k.hjemmelag, borte: k.bortelag, bane: k.baneNavn, turnering: k.turnering, spillform: k.spillform, resultat: k.resultat,
-        vare: [["h", k.hjemmelag], ["b", k.bortelag]].filter(([, n]) => pre && n.startsWith(pre)).map(([sd, n]) => ({ lag: `${kls(k.turnering)} ${n}`, hjemme: sd === "h" })) });
-      for (const [m, kamper] of Object.entries(per)) await S.backend.put("lagkamper", `${kl.fiksId}-${m}`, { klubbId: kl.fiksId, klubb: kl.navn, maned: m, kamper });
-      msg.innerHTML = `<span class="ok">Importert ${list.length} kamper for ${esc(kl.navn)} (lagnavn «${esc(pre)}») i ${Object.keys(per).length} måneder.</span>`;
+        vare: [["h", k.hjemmelag], ["b", k.bortelag]].filter(([, n]) => pre && (erLag ? n === pre : n.startsWith(pre))).map(([sd, n]) => ({ lag: `${kls(k.turnering)} ${n}`, hjemme: sd === "h" })) });
+      for (const [m, kamper] of Object.entries(per)) await S.backend.put("lagkamper", erLag ? `lag${kl.fiksId}-${m}` : `${kl.fiksId}-${m}`,
+        erLag ? { lagId: kl.fiksId, klubb: pre, maned: m, kamper } : { klubbId: kl.fiksId, klubb: kl.navn, maned: m, kamper });
+      msg.innerHTML = `<span class="ok">Importert ${list.length} kamper for ${esc(erLag ? pre : kl.navn)}${erLag ? "" : ` (lagnavn «${esc(pre)}»)`} i ${Object.keys(per).length} måneder.</span>`;
     } catch (er) { msg.innerHTML = `<span class="err">${esc(er.message && !er.code ? er.message : errText(er))}</span>`; }
     e.target.value = "";
   };

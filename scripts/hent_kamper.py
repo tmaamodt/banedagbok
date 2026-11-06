@@ -93,10 +93,14 @@ class Supabase:
 FOTBALL_NO_KLUBB = "https://www.fotball.no/footballapi/Calendar/DownloadClubExcelCalendar"
 
 
-def last_ned_excel(fiks_id: str, navn: str, fra: dt.date, til: dt.date, klubb: bool = False) -> bytes:
-    qs = urllib.parse.urlencode({"clubId" if klubb else "stadiumId": fiks_id, "heading": f"Kamper for {navn}",
+FOTBALL_NO_LAG = "https://www.fotball.no/footballapi/Calendar/DownloadTeamExcelCalendar"
+
+
+def last_ned_excel(fiks_id: str, navn: str, fra: dt.date, til: dt.date, klubb: bool = False, lag: bool = False) -> bytes:
+    nokkel, url = ("teamId", FOTBALL_NO_LAG) if lag else ("clubId", FOTBALL_NO_KLUBB) if klubb else ("stadiumId", FOTBALL_NO)
+    qs = urllib.parse.urlencode({nokkel: fiks_id, "heading": f"Kamper for {navn}",
                                  "fromDate": fra.isoformat(), "toDate": til.isoformat()})
-    req = urllib.request.Request(f"{FOTBALL_NO_KLUBB if klubb else FOTBALL_NO}?{qs}", headers={"User-Agent": USER_AGENT})
+    req = urllib.request.Request(f"{url}?{qs}", headers={"User-Agent": USER_AGENT})
     for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
@@ -345,7 +349,9 @@ def vare_lag(kamper: list[dict]) -> str:
 
 def hent_lagkamper(db: Supabase, cfg: dict, fra: dt.date, til: dt.date, dry: bool) -> int:
     klubber = cfg.get("klubber") or []
-    if not klubber:
+    # lag som er lagt til med lag-ID på en treningsgruppe (f.eks. samarbeidslag fra en annen klubb)
+    lag_ider = sorted({str(i) for r in db.get_all("grupper", "select=id,data") for i in (r["data"].get("lagIder") or []) if str(i).isdigit()})
+    if not klubber and not lag_ider:
         return 0
     fra_m, til_m = fra.replace(day=1), (til.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
     maneder = []
@@ -375,6 +381,25 @@ def hent_lagkamper(db: Supabase, cfg: dict, fra: dt.date, til: dt.date, dry: boo
                                                "spillform": k["spillform"], "resultat": k["resultat"], "vare": vare})
         print(f"- klubb {kl.get('navn', kid)} ({kid}): {len(kamper)} kamper, lagnavn «{pre}»")
         rader += [{"id": f"{kid}-{m}", "data": {"klubbId": kid, "klubb": kl.get("navn", ""), "maned": m, "kamper": v}} for m, v in per_mnd.items()]
+    for lid in lag_ider:
+        try:
+            kamper = les_kamper(last_ned_excel(lid, f"lag {lid}", fra_m, til_m, lag=True))
+        except Exception as e:  # noqa: BLE001
+            print(f"- lag {lid}: FEIL ved henting: {e}")
+            feil += 1
+            continue
+        from collections import Counter
+        navn = (Counter(n for k in kamper for n in {k["hjemmelag"], k["bortelag"]} if n).most_common(1) or [("", 0)])[0][0]
+        per_mnd = {m: [] for m in maneder}
+        for k in kamper:
+            vare = [{"lag": f"{klasse(k['turnering'])} {n}", "hjemme": side == "h"}
+                    for side, n in (("h", k["hjemmelag"]), ("b", k["bortelag"])) if navn and n == navn]
+            if k["dato"][:7] in per_mnd:
+                per_mnd[k["dato"][:7]].append({"kampnr": k["kampnr"], "dato": k["dato"], "tid": k["tid"], "hjem": k["hjemmelag"],
+                                               "borte": k["bortelag"], "bane": k["baneNavn"], "turnering": k["turnering"],
+                                               "spillform": k["spillform"], "resultat": k["resultat"], "vare": vare})
+        print(f"- lag {lid}: {len(kamper)} kamper, lagnavn «{navn}»")
+        rader += [{"id": f"lag{lid}-{m}", "data": {"lagId": lid, "klubb": navn, "maned": m, "kamper": v}} for m, v in per_mnd.items()]
     if rader and not dry:
         db.upsert("lagkamper", rader)
         print(f"Lagkamper lagret: {len(rader)} klubb-måneder.")
