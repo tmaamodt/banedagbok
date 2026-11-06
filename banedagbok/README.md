@@ -64,20 +64,32 @@ Hvert lag kobles til lagene sine på fotball.no.
 
 ## Planlegging
 
-Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider for en periode, på samme måte som i treningsarket.
+Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider, på samme måte som i treningsarket. Planen gjelder ukenumre i ett år, og hver uke kan ha sin egen plan.
 
-1. Velg en periode fra–til, eller bruk et hurtigvalg som «Høstsesong».
+1. Velg år med pilene ved siden av årstallet, og velg ukene du vil endre i ukestripa:
+   - Klikk på en uke for å velge den eller ta den bort. Hold museknappen inne og dra for å velge flere på en gang. Shift-klikk velger alle ukene mellom.
+   - Dobbeltklikk på en uke velger alle uker som har samme plan.
+   - Hurtigvalg: Alle, Ingen, Fra denne uka, Bare partall, Bare oddetall og Snu valget. «Bare partall» og «Bare oddetall» tar bort de andre ukene fra det du har valgt (for eksempel uke 14–43, bare partall).
+   - Bokstaven under ukenummeret viser hvilke uker som har lik plan, så du ser for eksempel at uke 1–13 har plan A og uke 14–43 har plan B.
 2. Hele uka vises nedover, mandag til søndag. Ukedagsknappene hopper til dagen.
    - Rutenettet har én rad per 30 minutter og én kolonne per kvarter (A–D) på hver bane, gruppert per anlegg. Baner uten kvarter vises som halvdeler eller hel bane.
    - Kryss av under «Vis baner» for hvilke baner som skal vises. Treninger på skjulte baner blir likevel med når planen lagres.
-3. Velg et lag og mal rutene laget skal ha. Klikk og dra for flere ruter, og klikk på en rute med samme lag for å viske den ut. Velg «Partallsuker» eller «Oddetallsuker» for treninger annenhver uke.
-4. Planleggingen viser bare treninger. Kamper vises ikke her, siden de uansett går foran trening (se ukevisningen).
-5. Trykk **Lagre planen**:
+3. Velg et lag og mal rutene laget skal ha. Klikk og dra for flere ruter, og klikk på en rute med samme lag for å viske den ut.
+   - Det du maler gjelder alle valgte uker.
+   - En rute med stiplet kant finnes bare i noen av de valgte ukene. Hold musa over den for å se hvor mange.
+   - Annenhver uke: velg «Bare partall» eller «Bare oddetall» og mal laget inn der.
+   - Du kan bytte uker underveis og lagre alt til slutt.
+4. «Kopier en plan inn i valgte uker» henter en plan fra samme år eller fra året før. «Tøm valgte uker» fjerner alt i de valgte ukene.
+5. Planleggingen viser bare treninger. Kamper vises ikke her, siden de uansett går foran trening (se ukevisningen).
+6. Trykk **Lagre planen**:
    - Ruter som henger sammen blir én fast trening.
    - Et lag med A og B samtidig får halvdelen, og et lag med alle fire kvarterene får hele banen.
-   - Bare treninger som tilhører samme plan blir erstattet. Andre faste treninger vises skravert og røres ikke.
+   - Like treninger i flere uker blir én trening med en liste over uker. Treningstider-fanen viser den som for eksempel «Uke 14–43 2026».
+   - Avlysninger og merknader følger med når en trening får nye uker.
+   - Bare treninger som tilhører planen blir erstattet. Andre faste treninger vises skravert og røres ikke.
+   - Planer som ble laget med datoperiode før, gjøres om til ukenummer første gang du lagrer året. Ukene vil ha de samme treningene som før.
 
-**Import fra treningsarket:** velg Excel-fila under «Importer treningsark». Importen fyller rutenettet, og du ser over hver dag og lagrer etterpå.
+**Import fra treningsarket:** velg ukene først, og så Excel-fila under «Importer treningsark». Importen fyller de valgte ukene. Økter merket «annenhver» legges bare i partallsukene. Du ser over hver dag og lagrer etterpå, og du ser over hver dag og lagrer etterpå.
 
 - **Formatet:** én blokk per ukedag med kolonnene «Tid» og «BANEDEL A–D», og anleggsnavnet øverst.
 - **Sammenslåtte celler:** gir flere kvarter.
