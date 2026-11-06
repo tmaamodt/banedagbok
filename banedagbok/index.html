@@ -119,6 +119,10 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .blk.booking .k { color: var(--pitch) }
 .blk.avlyst { opacity: .45; text-decoration: line-through }
 .blk.konflikt { border: 2px solid var(--conflict); box-shadow: 0 0 0 1px var(--conflict) inset }
+.blk.viker { opacity: .5; border-style: dashed }
+.blk.viker .l { text-decoration: line-through }
+.alert.info { border-left-color: var(--match); background: var(--match-soft) }
+.warn { color: var(--match); font-weight: 600 }
 .blk .k { font: 500 10.5px var(--f-mono); display: block; white-space: nowrap }
 .blk .l { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis }
 .blk .s { color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
@@ -166,8 +170,7 @@ table.pl td.pc.lock { cursor: not-allowed; opacity: .55 }
 table.pl td.pc span.lab { display: block; padding: 2px 4px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink) }
 table.pl td.pc span.wk { position: absolute; right: 2px; bottom: 1px; font: 600 9px var(--f-mono); color: var(--muted) }
 table.pl td.pc span.km { position: absolute; right: 2px; top: 1px; font: 600 9px var(--f-mono); color: var(--match) }
-table.pl td.pc.clash { box-shadow: inset 0 0 0 2px var(--conflict) }
-table.pl td.pc.clash span.km { color: var(--conflict) }
+table.pl td.pc.clash { box-shadow: inset 0 0 0 2px var(--match) }
 .plsum { display: grid; gap: 6px; font-size: 14px }
 .banecard { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 12px; background: var(--surface) }
 .banecard .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
@@ -844,11 +847,19 @@ function collisions(r, skipId) {
   }
   return hits;
 }
-function collisionHtml(hits, okText) {
+// Kamper går alltid foran trening: en trening som overlapper en kamp, viker (faller bort den dagen) og regnes ikke som kollisjon.
+const isMatch = it => it.type === "kamp" || it.type === "tkamp";
+const yields = (x, y) => x.type === "trening" && isMatch(y);
+// kind: hva som legges inn – "trening" viker for kamper, "kamp" fortrenger treninger
+function collisionHtml(hits, okText, kind) {
   if (!hits.length) return `<span class="ok">${okText || "Ingen kollisjoner med kamper, treninger eller bookinger."}</span>`;
-  const dates = [...new Set(hits.map(h => h.date))];
-  const list = hits.slice(0, 4).map(h => `${fmtDate(h.date)} ${fromMin(h.it.start)}–${fromMin(h.it.end)} ${esc(h.it.label)} (${esc(delbane(anlegg(h.it.src.anleggId), h.it.del)?.navn || "?")})`).join("; ");
-  return `<span class="err">Kolliderer ${dates.length === 1 ? "én dag" : dates.length + " dager"}:</span> ${list}${hits.length > 4 ? " …" : ""}`;
+  const soft = hits.filter(h => kind === "trening" ? isMatch(h.it) : kind === "kamp" ? h.it.type === "trening" : false), hard = hits.filter(h => !soft.includes(h));
+  const fmt = hs => hs.slice(0, 4).map(h => `${fmtDate(h.date)} ${fromMin(h.it.start)}–${fromMin(h.it.end)} ${esc(h.it.label)} (${esc(delbane(anlegg(h.it.src.anleggId), h.it.del)?.navn || "?")})`).join("; ") + (hs.length > 4 ? " …" : "");
+  const days = hs => { const n = new Set(hs.map(h => h.date)).size; return n === 1 ? "én dag" : n + " dager"; };
+  const out = [];
+  if (hard.length) out.push(`<span class="err">Kolliderer ${days(hard)}:</span> ${fmt(hard)}`);
+  if (soft.length) out.push(kind === "trening" ? `<span class="warn">Kamp går foran, treningen faller bort ${days(soft)}:</span> ${fmt(soft)}` : `<span class="warn">Kampen går foran ${soft.length === 1 ? "én trening" : soft.length + " treninger"}:</span> ${fmt(soft)}`);
+  return out.join("<br>");
 }
 function markConflicts(items, a) {
   const pairs = [];
@@ -858,7 +869,9 @@ function markConflicts(items, a) {
     if (x.start >= y.end || y.start >= x.end) continue;
     const [xs, xe] = zoneOf(a, x.del), [ys, ye] = zoneOf(a, y.del);
     if (xs >= ye || ys >= xe) continue;
-    x.konflikt = y.konflikt = true; pairs.push([x, y]); (x.mates ||= []).push(y); (y.mates ||= []).push(x);
+    if (yields(x, y) || yields(y, x)) { const [t, k] = yields(x, y) ? [x, y] : [y, x]; t.viker = k; (pairs.viker ||= []).push([t, k]); }
+    else { x.konflikt = y.konflikt = true; pairs.push([x, y]); }
+    (x.mates ||= []).push(y); (y.mates ||= []).push(x);
   }
   // place colliding blocks side by side so each stays clickable
   for (const it of items.slice().sort((p, q) => p.start - q.start || p.end - q.end)) {
@@ -1018,18 +1031,20 @@ function renderWeek() {
       if (it.lanes > 1) { const w = (ze - zs) / it.lanes; zs = zs + w * it.lane; ze = zs + w; }
       const top = Math.max(0, (it.start - DAY_START) / 60 * hpx), bot = Math.min(H * hpx, (it.end - DAY_START) / 60 * hpx);
       const d = delbane(a, it.del);
-      const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}`;
-      html += `<button class="blk ${it.type}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
+      const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}${it.viker ? " · viker for kamp: " + it.viker.label : ""}`;
+      html += `<button class="blk ${it.type}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
         style="top:${top + 1}px;height:${Math.max(18, bot - top - 2)}px;left:calc(${zs / 12 * 100}% + 2px);width:calc(${(ze - zs) / 12 * 100}% - 4px)" title="${esc(title)}">
         <span class="k">${fromMin(it.start)} ${esc(d ? d.navn : "")}</span><span class="l">${esc(it.label)}</span>${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
     }
     html += `</div>`;
   }
   grid.innerHTML = html;
-  alerts.innerHTML = pairs.length ? pairs.map(([x, y]) => {
+  const vk = [...new Map((pairs.viker || []).map(([t, k]) => [t, [t, k]])).values()]; // én linje per trening, selv om den viker for flere kamper
+  const vikerHtml = vk.length ? `<div class="alert info"><b>Kamp går foran:</b> ${vk.length === 1 ? "én trening faller" : vk.length + " treninger faller"} bort denne uka. ${vk.slice(0, 6).map(([t, k]) => `${fmtDate(t.date)} ${esc(t.label)} ${fromMin(t.start)} (${esc(k.label)})`).join("; ")}${vk.length > 6 ? " …" : ""}</div>` : "";
+  alerts.innerHTML = vikerHtml + (pairs.length ? pairs.map(([x, y]) => {
     const dx = delbane(a, x.del), dy = delbane(a, y.del);
     return `<div class="alert"><b>Kollisjon ${fmtDate(x.date)}:</b> ${esc(x.label)} (${fromMin(x.start)}–${fromMin(x.end)}, ${esc(dx?.navn || "?")}) og ${esc(y.label)} (${fromMin(y.start)}–${fromMin(y.end)}, ${esc(dy?.navn || "?")}) bruker samme del av banen.</div>`;
-  }).join("") : (items.length ? "" : `<div class="note">Ingen kamper eller treninger på ${esc(a.navn)}${multiBane(a) ? " · " + esc(bane?.navn || "") : ""} denne uka.</div>`);
+  }).join("") : (items.length ? "" : `<div class="note">Ingen kamper eller treninger på ${esc(a.navn)}${multiBane(a) ? " · " + esc(bane?.navn || "") : ""} denne uka.</div>`));
   // scroll to first item
   const first = items.length ? Math.min(...items.map(x => x.start)) : 16 * 60;
   const gw = $(".gridwrap"); if (gw.scrollHeight > gw.clientHeight) gw.scrollTop = Math.max(0, (first - DAY_START) / 60 * hpx - 20);
@@ -1254,7 +1269,7 @@ function treningskampDialog(id, date, minutes) {
     const d = partsOf(a, bId).find(x => x.bredde === w) || partsOf(a, bId).find(x => x.bredde === 12); return d?.id; };
   delOptions($("#tk-del"), a, old?.delbaneId || suggest(sf));
   const cand = () => ({ type: "enkelt", anleggId: a.id, delbaneId: $("#tk-del").value, dato: $("#tk-dato").value, fra: $("#tk-tid").value, til: fromMin((toMin($("#tk-tid").value) || 0) + (+$("#tk-var").value || 60)) });
-  const prev = () => { $("#tk-coll").innerHTML = collisionHtml(collisions(cand(), id), "Banen er ledig."); };
+  const prev = () => { $("#tk-coll").innerHTML = collisionHtml(collisions(cand(), id), "Banen er ledig.", "kamp"); };
   $("#tk-sf").onchange = () => { const n = $("#tk-sf").value; $("#tk-var").value = +(S.cfg.varighet[n] || 75); delOptions($("#tk-del"), a, suggest(n)); prev(); };
   $("#tkf").addEventListener("input", prev); $("#tkf").addEventListener("change", prev); prev();
   $("#tkSave").onclick = async () => {
@@ -1315,7 +1330,7 @@ function initTrainForm() {
     } catch (err) { msg.innerHTML = `<span class="err">${esc(errText(err))}</span>`; }
   };
   $("#tf-cancel").onclick = () => { stopEdit(); $("#tf-msg").textContent = ""; applyRoleUI(); };
-  const prev = () => { const r = trainFromForm(); $("#tf-coll").innerHTML = requestDates(r).length ? collisionHtml(collisions(r, S.editTrain)) : ""; };
+  const prev = () => { const r = trainFromForm(); $("#tf-coll").innerHTML = requestDates(r).length ? collisionHtml(collisions(r, S.editTrain), null, "trening") : ""; };
   $("#tf").addEventListener("input", prev); $("#tf").addEventListener("change", prev);
 }
 function trainFromForm() {
@@ -1373,7 +1388,7 @@ function initRequestForm() {
   $("#rf-fra").addEventListener("change", () => { if ($("#rf-type").value === "treningskamp") { const n = $("#rf-sf").value, st = toMin($("#rf-fra").value); if (st != null) $("#rf-til").value = fromMin(Math.min(st + +(S.cfg.varighet[n] || 75), 23 * 60 + 59)); } });
   const sync = () => {
     syncReqType();
-    const r = requestFromForm(); $("#rf-coll").innerHTML = requestDates(r).length ? collisionHtml(collisions(r), "Tiden er ledig.") : "";
+    const r = requestFromForm(); $("#rf-coll").innerHTML = requestDates(r).length ? collisionHtml(collisions(r), "Tiden er ledig.", r.type === "treningskamp" ? "kamp" : "trening") : "";
   };
   $("#rf").addEventListener("input", sync); $("#rf").addEventListener("change", sync);
   $("#rf").onsubmit = async e => {
@@ -1438,7 +1453,7 @@ function renderRequests() {
       ${r.merknad ? `<div class="meta">«${esc(r.merknad)}»</div>` : ""}
       <div class="meta">Sendt av ${esc(r.navn || r.epost)}${r.opprettet ? " " + fmtDate(r.opprettet.slice(0, 10)) : ""}${r.behandlet ? ` · ${STATUS[r.status].toLowerCase()} av ${esc(r.behandletAv || "admin")} ${fmtDate(r.behandlet.slice(0, 10))}` : ""}</div>
       ${r.svar ? `<div><b>Svar:</b> ${esc(r.svar)}</div>` : ""}
-      ${r.status === "ny" ? `<div class="meta">${collisionHtml(hits, "Tiden er ledig.")}</div>` : ""}
+      ${r.status === "ny" ? `<div class="meta">${collisionHtml(hits, "Tiden er ledig.", r.type === "treningskamp" ? "kamp" : "trening")}</div>` : ""}
       ${r.status === "ny" && isAdmin() ? `<div class="bar"><input type="text" class="rsvar" id="svar-${esc(id)}" placeholder="Svar til treneren (valgfritt)" style="flex:1;min-width:180px">
           <button class="btn primary" data-act="godkjenn">Godkjenn</button><button class="btn danger" data-act="avslaa">Avslå</button></div>` : ""}
       ${r.status === "ny" && !isAdmin() ? `<div class="bar"><button class="btn" data-act="trekk">Trekk tilbake</button></div>` : ""}
@@ -1706,7 +1721,7 @@ function renderPlan() {
   const perLag = {}; for (const t of desired) perLag[t.lag] = (perLag[t.lag] || 0) + 1;
   $("#plSum").innerHTML = `<h3>Oppsummering for ${esc(lbl(P.key))}</h3>
     <div>${desired.length} faste treninger per uke for ${Object.keys(perLag).length} lag.${Object.keys(perLag).length ? " " + Object.entries(perLag).sort().map(([l, n]) => `<span class="chip" style="${lagStyle(l)};padding-right:10px">${esc(l)} · ${n}</span>`).join(" ") : ""}</div>
-    ${clashes.length ? `<div><span class="err">Kolliderer med kamper eller bookinger i perioden:</span><ul>${clashes.slice(0, 30).map(([t, hits]) => `<li>${esc(t.lag)}, ${DAGER[t.ukedag - 1]} ${t.fra}–${t.til} (${esc(delLabel(anlegg(t.anleggId), t.delbaneId))}): ${hits.length === 1 ? "1 gang" : hits.length + " ganger"}, f.eks. ${hits.slice(0, 3).map(x => `${fmtDate(x.date)} ${esc(x.it.label)}`).join("; ")}</li>`).join("")}</ul></div>` : desired.length ? `<div class="ok">Ingen kollisjoner med kamper i perioden.</div>` : ""}`;
+    ${clashes.length ? `<div><span class="warn">Kamp går foran. Disse treningene faller bort på kampdagene:</span><ul>${clashes.slice(0, 30).map(([t, hits]) => `<li>${esc(t.lag)}, ${DAGER[t.ukedag - 1]} ${t.fra}–${t.til} (${esc(delLabel(anlegg(t.anleggId), t.delbaneId))}): ${hits.length === 1 ? "1 gang" : hits.length + " ganger"}, f.eks. ${hits.slice(0, 3).map(x => `${fmtDate(x.date)} ${esc(x.it.label)}`).join("; ")}</li>`).join("")}</ul></div>` : desired.length ? `<div class="ok">Ingen kollisjoner med kamper i perioden.</div>` : ""}`;
 }
 function paintCell(td) {
   const k = td.dataset.k; if (!k || td.classList.contains("off")) return;

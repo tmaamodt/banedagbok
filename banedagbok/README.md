@@ -30,6 +30,13 @@ En forespørsel gjelder enten fast tid eller én dag. Trener+ søker bare om fas
 
 **Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. En trener søker om treningskamp under Forespørsler, og den legges inn når admin godkjenner. De vises som kamper i lilla. Henteskriptet rører dem aldri.
 
+**Kamp går foran trening.** Treningstidene settes opp først. En trening som overlapper en kamp (fra fotball.no eller treningskamp) på samme del av banen, viker:
+
+- I uka vises den stiplet og overstreket.
+- Den listes under «Kamp går foran», og regnes ikke som en kollisjon.
+
+Rødt kollisjonsvarsel gis bare når to treninger, to kamper eller en booking krasjer.
+
 ## Planlegging
 
 Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider for en periode, på samme måte som i treningsarket.
