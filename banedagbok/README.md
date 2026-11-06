@@ -37,6 +37,19 @@ En forespørsel gjelder enten fast tid eller én dag. Trener+ søker bare om fas
 
 Rødt kollisjonsvarsel gis bare når to treninger, to kamper eller en booking krasjer.
 
+## Lag og treningsgrupper
+
+Treningstidene bruker ofte et fellesnavn, for eksempel «G16», mens gruppen spiller kamper som flere lag på fotball.no. Under fanen **Lag** kobles hver treningsgruppe til lagene sine.
+
+- **Koble lag:** admin kan koble alle grupper, Trener+ bare sine egne lag. Siden foreslår lag med samme årsklasse, gruppert per klubb.
+- **Visning:** for valgt gruppe vises treninger, treningskamper og lagenes kamper, hjemme og borte, samlet per dato i fire uker om gangen.
+- **Klubbenes kamper:** henteskriptet henter alle kampene til klubbene i lista nederst på siden hver natt. Kampene lagres samlet per klubb og måned i tabellen `lagkamper`. Admin kan også importere klubbens Excel-fil for hånd under «Hent fra fotball.no».
+- **Filteret «Vis lagenes kamper»** i ukevisningen gjør to ting:
+  - Det merker treninger der lagene har kamp et annet sted, eller samtidig på en annen del av banen. Har alle lagene i gruppen kamp, står det **«Trolig ledig»**. Har noen av dem kamp, står det **«Delvis borte»**.
+  - Det lister ukens kamper for gruppene som trener på banen.
+
+  Til bortekamper regnes det med en time før og etter for reise.
+
 ## Planlegging
 
 Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider for en periode, på samme måte som i treningsarket.

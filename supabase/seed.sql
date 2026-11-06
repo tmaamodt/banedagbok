@@ -11,6 +11,24 @@
 insert into public.config (id, data) values ('oppsett', '{
   "klubb": "",
   "lag": [],
+  "klubber": [
+    {
+      "fiksId": "109",
+      "navn": "Bjørkelangen SF"
+    },
+    {
+      "fiksId": "110",
+      "navn": "Høland IUL"
+    },
+    {
+      "fiksId": "114",
+      "navn": "Aurskog-Finstadbru SK"
+    },
+    {
+      "fiksId": "3168",
+      "navn": "Aurskog-Høland FK"
+    }
+  ],
   "varighet": {
     "3": 45,
     "5": 60,

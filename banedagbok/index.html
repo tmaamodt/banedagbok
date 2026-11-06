@@ -172,6 +172,21 @@ table.pl td.pc span.wk { position: absolute; right: 2px; bottom: 1px; font: 600 
 table.pl td.pc span.km { position: absolute; right: 2px; top: 1px; font: 600 9px var(--f-mono); color: var(--match) }
 table.pl td.pc.clash { box-shadow: inset 0 0 0 2px var(--match) }
 .plsum { display: grid; gap: 6px; font-size: 14px }
+/* Lag og treningsgrupper */
+.blk.borte { outline: 2px dashed var(--pitch); outline-offset: -2px; opacity: .65 }
+.blk.delvis { outline: 2px dashed var(--pitch); outline-offset: -2px }
+.lkpanel { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 14px; display: grid; gap: 6px; font-size: 14px }
+.lkpanel .row, .sched .row { display: grid; grid-template-columns: 9.5em 5.5em 1fr; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line) }
+.sched .row.dag { border-bottom: 0; padding-top: 10px; font: 700 15px var(--f-display); grid-template-columns: 1fr }
+.sched .row .what { min-width: 0 }
+.sched .flag { font-size: 12px; font-weight: 600; color: var(--pitch) }
+.pill.borte { border-color: var(--muted); color: var(--muted) }
+.grplist { display: grid; gap: 4px }
+.grplist button { all: unset; cursor: pointer; display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent }
+.grplist button:hover { background: var(--pitch-soft) }
+.grplist button[aria-pressed="true"] { border-color: var(--pitch); background: var(--pitch-soft) }
+.grplist b { font: 700 16px var(--f-display) }
+.grplist small { color: var(--muted); font-size: 12px }
 .banecard { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 12px; background: var(--surface) }
 .banecard .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
 .banecard .head input[data-bf="navn"] { font: 700 18px var(--f-display); min-width: 0; flex: 1 1 160px }
@@ -268,6 +283,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <button role="tab" data-view="treninger" data-for="trener" aria-selected="false">Treningstider</button>
     <button role="tab" data-view="plan" data-for="admin" aria-selected="false">Planlegging</button>
     <button role="tab" data-view="foresporsler" data-for="trener" aria-selected="false">Forespørsler<span class="badge" id="reqBadge" hidden></span></button>
+    <button role="tab" data-view="lag" data-for="alle" aria-selected="false">Lag</button>
     <button role="tab" data-view="kamper" data-for="alle" aria-selected="false">Kamper og bookinger</button>
     <button role="tab" data-view="brukere" data-for="admin" aria-selected="false">Brukere</button>
     <button role="tab" data-view="import" data-for="admin" aria-selected="false">Hent fra fotball.no</button>
@@ -283,6 +299,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <button class="btn" id="nextW" aria-label="Neste uke">→</button>
       <button class="btn ghost" id="todayW">I dag</button>
       <span class="spacer"></span>
+      <label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="showLK"> Vis lagenes kamper</label>
       <button class="btn" id="jumpPrev" title="Forrige uke med aktivitet">⇤ Forrige aktivitet</button>
       <button class="btn" id="jumpNext" title="Neste uke med aktivitet">Neste aktivitet ⇥</button>
       <button class="btn primary" id="addTrain">+ Treningstid</button>
@@ -297,6 +314,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <div class="stripaxis" id="stripAxis"></div>
     </div>
     <div class="alerts" id="alerts"></div>
+    <div class="lkpanel" id="lkPanel" hidden></div>
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
     <p class="note">Hver dagskolonne er banen sett ovenfra: venstre og høyre halvdel er skilt med midtlinjen. En kamp på «7er A» tar bare sin del av bredden, så du ser hvor det er plass til trening samtidig. Klikk på et dagnavn for å se dagen i full bredde<span id="ukeNoteClick"></span>.</p>
   </section>
@@ -338,6 +356,29 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <div class="bar"><h2>Treningstider</h2><span class="spacer"></span><label class="note" id="tlMineWrap" hidden><input type="checkbox" id="tlMine" checked> Bare mine lag</label><select id="tlFilter" aria-label="Filtrer på anlegg"></select></div>
         <div class="tablewrap"><table><thead><tr><th>Dag</th><th>Tid</th><th>Lag</th><th>Bane</th><th>Periode</th></tr></thead><tbody id="tList"></tbody></table></div>
         <p class="note">Faste treninger gjentas hver uke i perioden, og stopper av seg selv når perioden er over. Enkelttreninger vises bare til datoen er passert. Klikk på en trening for å avlyse en dag, endre eller slette.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAG OG TRENINGSGRUPPER -->
+  <section id="v-lag" hidden>
+    <div class="cols oppsett">
+      <div class="panel" style="display:grid;gap:10px;align-content:start">
+        <div class="bar"><h2>Treningsgrupper</h2><span class="spacer"></span><label class="note" id="grpMineWrap" hidden><input type="checkbox" id="grpMine" checked> Bare mine</label></div>
+        <p class="note">En treningsgruppe er navnet som brukes på treningstidene, for eksempel «G16». Koble gruppen til lagene på fotball.no, for eksempel G16-1, G16-2 og G15, så vises lagenes kamper sammen med gruppens treninger.</p>
+        <div class="grplist" id="grpList"></div>
+        <div id="klubbAdmin" hidden style="display:grid;gap:8px;margin-top:10px">
+          <h3>Klubber som hentes fra fotball.no</h3>
+          <p class="note">Alle kampene til disse klubbene hentes, også bortekamper. Klubb-ID står i adressen til klubben på fotball.no (…/klubb/hjem/?fiksId=109).</p>
+          <div class="chips" id="klubbChips"></div>
+          <form class="bar" id="klubbf"><input type="text" id="klubbf-navn" placeholder="Klubbnavn" style="width:14ch" aria-label="Klubbnavn"><input type="text" id="klubbf-id" placeholder="Klubb-ID" inputmode="numeric" style="width:9ch" aria-label="Klubb-ID"><button class="btn" type="submit">Legg til</button></form>
+        </div>
+      </div>
+      <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
+        <div class="bar"><h2 id="grpTitle">Velg en treningsgruppe</h2><span class="spacer"></span>
+          <button class="btn" id="grpPrev" aria-label="Forrige uker">←</button><span class="note num" id="grpRange"></span><button class="btn" id="grpNext" aria-label="Neste uker">→</button><button class="btn ghost" id="grpToday">I dag</button></div>
+        <div id="grpTeams" style="display:grid;gap:8px"></div>
+        <div class="sched" id="grpSched"></div>
       </div>
     </div>
   </section>
@@ -467,6 +508,14 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <div class="bar"><button class="btn primary rw" id="impGo">Importer</button><span id="impMsg" class="note"></span></div>
         </div>
       </div>
+      <div class="panel" style="display:grid;gap:12px;min-width:0">
+        <h2>Klubbens kamper (også borte)</h2>
+        <p class="note">Med Supabase hentes dette automatisk hver natt. Her kan du laste ned og importere for hånd. Perioden er den samme som til venstre.</p>
+        <form class="form" onsubmit="return false"><label>Klubb<select id="ck-klubb"></select></label></form>
+        <p><a class="btn" id="ck-link" target="_blank" rel="noopener" href="#">Last ned klubbens kamper ↗</a></p>
+        <label class="btn rw" style="justify-self:start">Importer Excel-fila<input type="file" id="ck-file" accept=".xlsx,.xls" hidden></label>
+        <p id="ck-msg" class="note"></p>
+      </div>
     </div>
   </section>
 
@@ -544,16 +593,16 @@ const DAY_START = 8 * 60, DAY_END = 23 * 60;
 const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7": 75, "5": 60, "3": 45 } };
 
 // ---------- state ----------
-const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, anleggId: null, baneId: null, week: monday(new Date()),
+const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, anleggId: null, baneId: null, week: monday(new Date()),
   view: "uke", day: null, ro: true, backend: null, loaded: false, editTrain: null,
   me: null,          // innlogget bruker: {epost, navn, rolle, lag}
   user: null,        // Supabase-innlogging
   canWrite: true,    // Claude-artefakt: false for de som bare kan lese
   viewAs: "eier" };  // testmodus: hvem siden vises som
-try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; } } catch (e) {}
+try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; S.showLK = !!u.showLK; S.lagSel = u.lagSel || null; } } catch (e) {}
 let SB = null; // Supabase-klient når siden er koblet til Supabase
-const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs })); } catch (e) {} };
-const COLS = ["treninger", "kamper", "foresporsler", "brukere"];
+const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs, showLK: S.showLK, lagSel: S.lagSel })); } catch (e) {} };
+const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper"];
 
 // ---------- roller ----------
 const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener" };
@@ -591,7 +640,7 @@ function localBackend() {
   let cb = () => {};
   return {
     name: "local",
-    start(onChange) { cb = onChange; onChange({ cfg: data.cfg, treninger: data.treninger, kamper: data.kamper, foresporsler: data.foresporsler, brukere: data.brukere }); },
+    start(onChange) { cb = onChange; onChange({ cfg: data.cfg, ...Object.fromEntries(COLS.map(c => [c, data[c] || {}])) }); },
     async saveCfg(c) { data.cfg = clone(c); persist(); cb({ cfg: data.cfg }); },
     async put(col, id, obj) { (data[col] ||= {})[id] = clone(obj); persist(); cb({ [col]: { ...data[col] } }); },
     async del(col, id) { delete (data[col] ||= {})[id]; persist(); cb({ [col]: { ...data[col] } }); },
@@ -819,6 +868,42 @@ function occurrences(weekStart, aId, bId) {
   return out;
 }
 function zoneOf(a, delId) { const d = delbane(a, delId); return d ? [d.start, d.start + d.bredde] : [0, 12]; }
+// ---------- treningsgrupper og lagenes kamper ----------
+// grupper: {lag: "G16", fotballLag: ["G16 Bjørkelangen", "G16 Bjørkelangen 2", …]}
+// lagkamper: én rad per klubb og måned med alle kampene; «vare» sier hvilke av lagene som er våre (hjemme/borte)
+const gruppeId = lag => "g-" + String(lag).normalize("NFKD").replace(/[^A-Za-z0-9_.~:@+-]/g, "_").slice(0, 60) + "-" + [...String(lag)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36);
+const gruppe = lag => Object.values(S.grupper).find(g => g.lag === lag);
+const canEditGroup = lag => isAdmin() || (isPluss() && myLag().includes(lag));
+let _lkSrc = null, _lkList = [];
+function lagkampList() {
+  if (_lkSrc === S.lagkamper) return _lkList;
+  _lkSrc = S.lagkamper; _lkList = [];
+  for (const doc of Object.values(S.lagkamper)) for (const k of doc.kamper || []) for (const v of k.vare || [])
+    _lkList.push({ ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId });
+  _lkList.sort((x, y) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
+  return _lkList;
+}
+const lagKlubb = t => lagkampList().find(k => k.lag === t)?.klubb || "?";
+const alleFotballLag = () => [...new Set(lagkampList().map(k => k.lag))].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+const klasseToken = lag => { const m = /^([GJ])\s?0?(\d{1,2})/i.exec(lag || ""); return m ? m[1].toUpperCase() + m[2] : /herre/i.test(lag) ? "Herrer" : /dame/i.test(lag) ? "Damer" : null; };
+// Spiller et av gruppens lag kamp (et annet sted eller på en annen del) som overlapper treningen?
+// Vindu: hjemme på samme anlegg 30 min før til kampslutt, ellers 60 min før til 60 min etter (reise).
+function lagOpptatt(lagNavn, date, start, end, anleggId) {
+  const g = gruppe(lagNavn); if (!g || !(g.fotballLag || []).length) return null;
+  const a = anlegg(anleggId), hits = [];
+  for (const k of lagkampList()) {
+    if (k.dato !== date || !g.fotballLag.includes(k.lag)) continue;
+    const kick = toMin(k.tid); if (kick == null) continue;
+    const dur = kampVarighet({ spillform: k.spillform }), here = !!(a && a.delbaner.some(d => (d.alias || []).includes(k.bane)));
+    const w0 = kick - (here ? 30 : 60), w1 = kick + dur + (here ? 0 : 60);
+    if (w0 < end && start < w1) hits.push(k);
+  }
+  if (!hits.length) return null;
+  const busy = new Set(hits.map(h => h.lag));
+  return { status: g.fotballLag.every(l => busy.has(l)) ? "borte" : "delvis", hits };
+}
+const kampTekst = k => `${k.hjemme ? "hjemme mot " + esc((k.borte || "").trim()) : "borte mot " + esc((k.hjem || "").trim())}, ${esc(k.bane || "")}`;
+
 // Annenhver uke: partalls- eller oddetallsuker (ISO-ukenummer)
 const weekMatches = (t, date) => !t.uker || (isoWeek(parseYmd(date)) % 2 === 0) === (t.uker === "partall");
 // Datoene en forespørsel eller treningstid gjelder: [{date, start, end}]
@@ -956,7 +1041,7 @@ function renderAll() {
   computeMe();
   $("#lagList").innerHTML = (S.cfg.lag || []).map(l => `<option value="${esc(l)}"></option>`).join("");
   renderStatus(); applyRoleUI(); renderWeek(); renderSeason(); renderTrainList(); renderKampList(); renderImport(); renderOppsett();
-  renderRequestForm(); renderRequests(); renderUsers(); applyRo();
+  renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); applyRo();
 }
 function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").forEach(d => d.classList.toggle("addable", isAdmin() || canRequest())); }
 function tabAllowed(v) {
@@ -1014,6 +1099,7 @@ function renderWeek() {
   const bane = curBane();
   const items = occurrences(ws, a.id, bane?.id);
   const pairs = markConflicts(items, a);
+  if (S.showLK) for (const it of items) if (it.type === "trening" && !it.avlyst) it.borte = lagOpptatt(it.label, it.date, it.start, it.end, a.id);
   const H = (DAY_END - DAY_START) / 60; const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   const today = ymd(new Date());
   const idx = S.day == null ? [0, 1, 2, 3, 4, 5, 6] : [S.day];
@@ -1031,14 +1117,26 @@ function renderWeek() {
       if (it.lanes > 1) { const w = (ze - zs) / it.lanes; zs = zs + w * it.lane; ze = zs + w; }
       const top = Math.max(0, (it.start - DAY_START) / 60 * hpx), bot = Math.min(H * hpx, (it.end - DAY_START) / 60 * hpx);
       const d = delbane(a, it.del);
-      const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}${it.viker ? " · viker for kamp: " + it.viker.label : ""}`;
-      html += `<button class="blk ${it.type}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
+      const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}${it.viker ? " · viker for kamp: " + it.viker.label : ""}${it.borte ? ` · ${it.borte.status === "borte" ? "trolig ledig" : "delvis borte"}: ` + it.borte.hits.map(h => `${h.lag} ${h.hjemme ? "hjemme" : "borte"} kl. ${h.tid}`).join(", ") : ""}`;
+      html += `<button class="blk ${it.type}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}${it.borte ? " " + it.borte.status : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
         style="top:${top + 1}px;height:${Math.max(18, bot - top - 2)}px;left:calc(${zs / 12 * 100}% + 2px);width:calc(${(ze - zs) / 12 * 100}% - 4px)" title="${esc(title)}">
-        <span class="k">${fromMin(it.start)} ${esc(d ? d.navn : "")}</span><span class="l">${esc(it.label)}</span>${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
+        <span class="k">${fromMin(it.start)} ${esc(d ? d.navn : "")}</span><span class="l">${esc(it.label)}</span>${it.borte ? `<span class="s" style="color:var(--pitch);font-weight:600">${it.borte.status === "borte" ? "Trolig ledig" : "Delvis borte"}</span>` : ""}${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
     }
     html += `</div>`;
   }
   grid.innerHTML = html;
+  // lagenes kamper (filter): treninger der laget har kamp et annet sted er trolig ledige
+  const lk = $("#lkPanel"); lk.hidden = !S.showLK;
+  if (S.showLK) {
+    const grpHere = new Set(items.filter(it => it.type === "trening").map(it => it.label).filter(l => gruppe(l)?.fotballLag?.length));
+    const weekDays = [...Array(7)].map((_, i) => ymd(addDays(ws, i)));
+    const rows = lagkampList().filter(k => weekDays.includes(k.dato) && [...grpHere].some(l => gruppe(l).fotballLag.includes(k.lag)));
+    const ingenGrupper = !Object.values(S.grupper).some(g => (g.fotballLag || []).length);
+    lk.innerHTML = `<b>Lagenes kamper denne uka</b>${ingenGrupper ? `<span class="note">Ingen treningsgrupper er koblet til lag på fotball.no ennå. Det gjøres under fanen Lag.</span>`
+      : !Object.keys(S.lagkamper).length ? `<span class="note">Klubbenes kamper er ikke hentet ennå (skjer automatisk hver natt med Supabase, eller importer under «Hent fra fotball.no»).</span>`
+      : rows.length ? rows.map(k => `<div class="row"><span class="num">${fmtDate(k.dato)} ${esc(k.tid)}</span><span><span class="pill ${k.hjemme ? "kamp" : "borte"}">${k.hjemme ? "Hjemme" : "Borte"}</span></span><span><b>${esc(k.lag)}</b> (${esc([...grpHere].filter(l => gruppe(l).fotballLag.includes(k.lag)).join(", "))}) ${kampTekst(k)}</span></div>`).join("")
+      : `<span class="note">Ingen kamper denne uka for gruppene som trener her.</span>`}`;
+  }
   const vk = [...new Map((pairs.viker || []).map(([t, k]) => [t, [t, k]])).values()]; // én linje per trening, selv om den viker for flere kamper
   const vikerHtml = vk.length ? `<div class="alert info"><b>Kamp går foran:</b> ${vk.length === 1 ? "én trening faller" : vk.length + " treninger faller"} bort denne uka. ${vk.slice(0, 6).map(([t, k]) => `${fmtDate(t.date)} ${esc(t.label)} ${fromMin(t.start)} (${esc(k.label)})`).join("; ")}${vk.length > 6 ? " …" : ""}</div>` : "";
   alerts.innerHTML = vikerHtml + (pairs.length ? pairs.map(([x, y]) => {
@@ -1114,6 +1212,11 @@ function renderKampList() {
     : `<tr><td colspan="6" class="muted">${fut ? "Ingen kommende kamper. Hent kampoversikten under «Hent fra fotball.no», eller fjern haken for «Bare kommende»." : "Ingen kamper ennå."}</td></tr>`;
 }
 function renderImport() {
+  { const v = $("#ck-klubb").value; $("#ck-klubb").innerHTML = (S.cfg.klubber || []).map(k => `<option value="${esc(k.fiksId)}">${esc(k.navn)}</option>`).join(""); if (v) $("#ck-klubb").value = v;
+    const kl = (S.cfg.klubber || []).find(k => k.fiksId === $("#ck-klubb").value), l = $("#ck-link");
+    if (kl) { const u = new URL("https://www.fotball.no/footballapi/Calendar/DownloadClubExcelCalendar"); u.searchParams.set("clubId", kl.fiksId); u.searchParams.set("heading", "Kamper for " + kl.navn);
+      u.searchParams.set("fromDate", $("#dl-fra").value || ymd(new Date())); u.searchParams.set("toDate", $("#dl-til").value || ymd(new Date())); l.href = u.toString(); l.style.pointerEvents = ""; }
+    else { l.href = "#"; l.style.pointerEvents = "none"; } }
   $("#autoNote").hidden = S.backend?.name !== "supabase";
   const a = anlegg($("#dl-anlegg").value);
   if (!$("#dl-fra").value) { const y = new Date().getFullYear(); const m = new Date().getMonth(); const yy = m >= 10 ? y + 1 : y; $("#dl-fra").value = `${yy}-01-01`; $("#dl-til").value = `${yy}-12-31`; }
@@ -1559,6 +1662,95 @@ function initUsers() {
     const b = e.target.closest("[data-lagdel]"); if (!b) return; const navn = b.dataset.lagdel;
     const c = cfgDraft(); c.lag = (c.lag || []).filter(l => l !== navn); await S.backend.saveCfg(c).catch(er => setStatus(esc(errText(er))));
   });
+}
+
+// ---------- Lag-fanen ----------
+S.lagWeek = monday(new Date());
+function renderLag() {
+  const mine = isTrainer() && $("#grpMine").checked;
+  $("#grpMineWrap").hidden = !isTrainer();
+  const names = [...new Set([...(S.cfg.lag || []), ...Object.values(S.grupper).map(g => g.lag)])].filter(l => !mine || myLag().includes(l)).sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+  if (!S.lagSel || !names.includes(S.lagSel)) S.lagSel = names[0] || null;
+  $("#grpList").innerHTML = names.length ? names.map(l => { const g = gruppe(l), n = (g?.fotballLag || []).length;
+    return `<button type="button" data-grp="${esc(l)}" aria-pressed="${l === S.lagSel}"><b>${esc(l)}</b><small>${n ? esc(g.fotballLag.join(" · ")) : "Ikke koblet til lag på fotball.no"}</small></button>`; }).join("")
+    : `<p class="note">Ingen lag ennå. Admin legger inn lag under Brukere, eller de kommer med når en treningsplan lagres.</p>`;
+  // klubber (admin)
+  $("#klubbAdmin").hidden = !isAdmin();
+  $("#klubbChips").innerHTML = (S.cfg.klubber || []).map(k => `<span class="chip">${esc(k.navn)} <span class="muted num">${esc(k.fiksId)}</span><button type="button" data-kdel="${esc(k.fiksId)}" aria-label="Fjern ${esc(k.navn)}">✕</button></span>`).join("") || `<span class="note">Ingen klubber.</span>`;
+  const l = S.lagSel; $("#grpTitle").textContent = l || "Velg en treningsgruppe";
+  const we = addDays(S.lagWeek, 27); $("#grpRange").textContent = `${fmtDate(ymd(S.lagWeek))} – ${fmtDate(ymd(we))}`;
+  if (!l) { $("#grpTeams").innerHTML = ""; $("#grpSched").innerHTML = ""; return; }
+  // koblede lag
+  const g = gruppe(l), linked = g?.fotballLag || [], can = canEditGroup(l), alle = alleFotballLag();
+  const tok = klasseToken(l), forslag = alle.filter(t => !linked.includes(t) && tok && t.startsWith(tok + " ")), rest = alle.filter(t => !linked.includes(t) && !forslag.includes(t));
+  // forslag per klubb, så en gruppe ikke kobles til andre klubbers lag ved et uhell
+  const perKlubb = {}; for (const t of forslag) { const k = lagKlubb(t); (perKlubb[k] ||= []).push(t); }
+  $("#grpTeams").innerHTML = `<div class="chips">${linked.map(t => `<span class="chip" style="padding-right:${can ? 4 : 10}px">${esc(t)}${can ? `<button type="button" data-unlink="${esc(t)}" aria-label="Fjern ${esc(t)}">✕</button>` : ""}</span>`).join("") || `<span class="note">Ingen lag på fotball.no er koblet til ${esc(l)}.</span>`}</div>
+    ${can ? (alle.length ? `<div class="bar"><select id="grpAdd" aria-label="Lag på fotball.no"><option value="">Koble til lag …</option>${forslag.length ? `<optgroup label="Forslag (${esc(tok)})">${forslag.map(t => `<option>${esc(t)}</option>`).join("")}</optgroup>` : ""}<optgroup label="Alle lag">${rest.map(t => `<option>${esc(t)}</option>`).join("")}</optgroup></select>
+        ${Object.entries(perKlubb).map(([k, ts]) => `<button class="btn" type="button" data-addall="${esc(ts.join("|"))}" title="${esc(ts.join(", "))}">Koble ${ts.length} ${esc(tok)}-lag fra ${esc(k)}</button>`).join("")}<span class="note" id="grpMsg"></span></div>`
+      : `<p class="note">Klubbenes kamper er ikke hentet ennå, så det finnes ingen lag å koble til.</p>`) : ""}`;
+  // timeplan: treninger, treningskamper og lagenes kamper
+  const from = ymd(S.lagWeek), to = ymd(we), rows = [];
+  for (const t of Object.values(S.treninger)) {
+    if (t.lag !== l) continue; const a = anlegg(t.anleggId);
+    for (const c of requestDates({ ...t, fom: isEnkelt(t) ? t.fom : (t.fom > from ? t.fom : from), tom: isEnkelt(t) ? t.tom : (t.tom < to ? t.tom : to) })) {
+      if (c.date < from || c.date > to) continue;
+      const avl = (t.avlyst || []).includes(c.date), opp = avl ? null : lagOpptatt(l, c.date, c.start, c.end, t.anleggId);
+      rows.push({ d: c.date, t: fromMin(c.start), html: `<span class="pill trening">Trening</span>`, what: `${fromMin(c.start)}–${fromMin(c.end)} · ${esc(a?.navn || "")}, ${esc(delLabel(a, t.delbaneId))}${avl ? ` <span class="err">avlyst</span>` : ""}${opp ? ` <span class="flag">${opp.status === "borte" ? "Trolig ledig" : "Delvis borte"} (${opp.hits.map(h => esc(h.lag)).join(", ")})</span>` : ""}` });
+    }
+  }
+  for (const k of Object.values(S.kamper)) if (k.kilde === "treningskamp" && k.lag === l && k.dato >= from && k.dato <= to)
+    rows.push({ d: k.dato, t: k.tid, html: `<span class="pill tkamp">Treningskamp</span>`, what: `mot ${esc(k.bortelag || "")} · ${esc(anlegg(k.anleggId)?.navn || "")}` });
+  for (const k of lagkampList()) if (linked.includes(k.lag) && k.dato >= from && k.dato <= to)
+    rows.push({ d: k.dato, t: k.tid, html: `<span class="pill ${k.hjemme ? "kamp" : "borte"}">${k.hjemme ? "Hjemme" : "Borte"}</span>`, what: `<b>${esc(k.lag)}</b> ${kampTekst(k)}${k.resultat && k.resultat.trim() !== "-" ? ` <span class="num muted">${esc(k.resultat)}</span>` : ""}` });
+  rows.sort((x, y) => (x.d + x.t).localeCompare(y.d + y.t));
+  let last = "", h = "";
+  for (const r of rows) { if (r.d !== last) { h += `<div class="row dag">${fmtDate(r.d)} ${r.d.slice(0, 4)}</div>`; last = r.d; } h += `<div class="row"><span class="num">${esc(r.t)}</span><span>${r.html}</span><span class="what">${r.what}</span></div>`; }
+  $("#grpSched").innerHTML = h || `<p class="note">Ingen treninger eller kamper for ${esc(l)} i disse fire ukene.</p>`;
+}
+async function saveGroup(lag, fotballLag) {
+  const id = gruppe(lag) ? Object.entries(S.grupper).find(([, g]) => g.lag === lag)[0] : gruppeId(lag);
+  try { await S.backend.put("grupper", id, { lag, fotballLag }); } catch (e) { const m = $("#grpMsg"); if (m) m.innerHTML = `<span class="err">${esc(errText(e))}</span>`; }
+}
+function initLag() {
+  $("#grpList").addEventListener("click", e => { const b = e.target.closest("[data-grp]"); if (b) { S.lagSel = b.dataset.grp; saveUi(); renderLag(); } });
+  $("#grpMine").onchange = renderLag;
+  $("#grpPrev").onclick = () => { S.lagWeek = addDays(S.lagWeek, -28); renderLag(); };
+  $("#grpNext").onclick = () => { S.lagWeek = addDays(S.lagWeek, 28); renderLag(); };
+  $("#grpToday").onclick = () => { S.lagWeek = monday(new Date()); renderLag(); };
+  $("#grpTeams").addEventListener("change", e => { if (e.target.id !== "grpAdd" || !e.target.value) return; const l = S.lagSel; saveGroup(l, [...new Set([...(gruppe(l)?.fotballLag || []), e.target.value])]); });
+  $("#grpTeams").addEventListener("click", e => {
+    const l = S.lagSel, u = e.target.closest("[data-unlink]");
+    if (u) saveGroup(l, (gruppe(l)?.fotballLag || []).filter(t => t !== u.dataset.unlink));
+    const all = e.target.closest("[data-addall]"); if (all) saveGroup(l, [...new Set([...(gruppe(l)?.fotballLag || []), ...all.dataset.addall.split("|")])]);
+  });
+  $("#klubbf").onsubmit = async e => {
+    e.preventDefault(); const navn = $("#klubbf-navn").value.trim(), id = $("#klubbf-id").value.replace(/\D/g, ""); if (!navn || !id) return;
+    const c = cfgDraft(); c.klubber = [...(c.klubber || []).filter(k => k.fiksId !== id), { fiksId: id, navn }];
+    try { await S.backend.saveCfg(c); $("#klubbf-navn").value = ""; $("#klubbf-id").value = ""; } catch (er) { setStatus(esc(errText(er))); }
+  };
+  $("#klubbChips").addEventListener("click", async e => { const b = e.target.closest("[data-kdel]"); if (!b) return; const c = cfgDraft(); c.klubber = (c.klubber || []).filter(k => k.fiksId !== b.dataset.kdel); await S.backend.saveCfg(c).catch(er => setStatus(esc(errText(er)))); });
+  $("#showLK").checked = !!S.showLK;
+  $("#showLK").onchange = e => { S.showLK = e.target.checked; saveUi(); renderWeek(); };
+  // klubbens kamper for hånd (samme regler som hent_kamper.py)
+  $("#ck-file").onchange = async e => {
+    const f = e.target.files[0], msg = $("#ck-msg"); if (!f) return;
+    try {
+      const kl = (S.cfg.klubber || []).find(k => k.fiksId === $("#ck-klubb").value); if (!kl) throw new Error("Velg klubb først.");
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array", cellDates: false });
+      const list = parseRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" }));
+      const cnt = {}; for (const k of list) for (const w of new Set([k.hjemmelag.split(" ")[0], k.bortelag.split(" ")[0]])) if (w) cnt[w] = (cnt[w] || 0) + 1;
+      const pre = Object.entries(cnt).sort((x, y) => y[1] - x[1])[0]?.[0] || "";
+      const kls = t => { const m = /^\s*([GJ])\s?0?(\d{1,2})\b/i.exec(t || ""); return m ? m[1].toUpperCase() + m[2] : /kvinne|dame|jente/i.test(t || "") ? "Damer" : "Herrer"; };
+      const per = {};
+      for (const k of list) (per[k.dato.slice(0, 7)] ||= []).push({ kampnr: k.kampnr, dato: k.dato, tid: k.tid, hjem: k.hjemmelag, borte: k.bortelag, bane: k.baneNavn, turnering: k.turnering, spillform: k.spillform, resultat: k.resultat,
+        vare: [["h", k.hjemmelag], ["b", k.bortelag]].filter(([, n]) => pre && n.startsWith(pre)).map(([sd, n]) => ({ lag: `${kls(k.turnering)} ${n}`, hjemme: sd === "h" })) });
+      for (const [m, kamper] of Object.entries(per)) await S.backend.put("lagkamper", `${kl.fiksId}-${m}`, { klubbId: kl.fiksId, klubb: kl.navn, maned: m, kamper });
+      msg.innerHTML = `<span class="ok">Importert ${list.length} kamper for ${esc(kl.navn)} (lagnavn «${esc(pre)}») i ${Object.keys(per).length} måneder.</span>`;
+    } catch (er) { msg.innerHTML = `<span class="err">${esc(er.message && !er.code ? er.message : errText(er))}</span>`; }
+    e.target.value = "";
+  };
+  $("#ck-klubb").onchange = renderImport;
 }
 
 // ---------- planlegging ----------
@@ -2077,7 +2269,8 @@ function initOppsett() {
 // ---------- navigation & events ----------
 function show(v) {
   S.view = v; $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const id of ["uke", "treninger", "plan", "foresporsler", "kamper", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
+  for (const id of ["uke", "treninger", "plan", "lag", "foresporsler", "kamper", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
+  if (v === "lag") renderLag();
   if (v === "uke") renderWeek();
   if (v === "plan") renderPlan();
 }
@@ -2129,7 +2322,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initPresets(); renderAll();
+initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {

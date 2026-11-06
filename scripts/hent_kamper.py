@@ -18,6 +18,9 @@ Hva skriptet gjør:
   4. Lagrer nye og endrede kamper. Delbane og varighet som noen har endret for hånd beholdes.
   5. Sletter kamper fra fotball.no i perioden som ikke lenger finnes i eksporten
      (flyttet til et anlegg vi ikke følger, eller strøket). Manuelle bookinger røres aldri.
+  6. Henter alle kampene (også bortekamper) for klubbene i oppsettet (config.klubber) og lagrer
+     dem samlet per klubb og måned i tabellen lagkamper. Brukes av treningsgruppene og til å
+     se om et lag har kamp et annet sted i treningstiden.
 """
 from __future__ import annotations
 
@@ -87,10 +90,13 @@ class Supabase:
 
 
 # ---------------------------------------------------------------- fotball.no
-def last_ned_excel(fiks_id: str, navn: str, fra: dt.date, til: dt.date) -> bytes:
-    qs = urllib.parse.urlencode({"stadiumId": fiks_id, "heading": f"Kamper for {navn}",
+FOTBALL_NO_KLUBB = "https://www.fotball.no/footballapi/Calendar/DownloadClubExcelCalendar"
+
+
+def last_ned_excel(fiks_id: str, navn: str, fra: dt.date, til: dt.date, klubb: bool = False) -> bytes:
+    qs = urllib.parse.urlencode({"clubId" if klubb else "stadiumId": fiks_id, "heading": f"Kamper for {navn}",
                                  "fromDate": fra.isoformat(), "toDate": til.isoformat()})
-    req = urllib.request.Request(f"{FOTBALL_NO}?{qs}", headers={"User-Agent": USER_AGENT})
+    req = urllib.request.Request(f"{FOTBALL_NO_KLUBB if klubb else FOTBALL_NO}?{qs}", headers={"User-Agent": USER_AGENT})
     for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
@@ -312,7 +318,67 @@ def main() -> int:
         if slett:
             db.delete_ids("kamper", slett)
         print("Lagret.")
+
+    feil += hent_lagkamper(db, cfg, fra, til, args.dry)
     return 1 if feil else 0
+
+
+# ---------------------------------------------------------------- klubbenes kamper (også borte)
+def klasse(turnering: str) -> str:
+    """Årsklasse fra turneringsnavnet: «G16 2. div» → G16, «G08 avd. 9» → G8, ellers Herrer/Damer."""
+    m = re.match(r"\s*([GJ])\s?0?(\d{1,2})\b", turnering or "", re.I)
+    if m:
+        return m.group(1).upper() + m.group(2)
+    return "Damer" if re.search(r"kvinne|dame|jente", turnering or "", re.I) else "Herrer"
+
+
+def vare_lag(kamper: list[dict]) -> str:
+    """Klubbens lagnavn-prefiks er det første ordet som går igjen i (nesten) alle kampene, f.eks. «Bjørkelangen»."""
+    from collections import Counter
+    c = Counter()
+    for k in kamper:
+        for side in {k["hjemmelag"].split(" ")[0], k["bortelag"].split(" ")[0]}:
+            if side:
+                c[side] += 1
+    return c.most_common(1)[0][0] if c else ""
+
+
+def hent_lagkamper(db: Supabase, cfg: dict, fra: dt.date, til: dt.date, dry: bool) -> int:
+    klubber = cfg.get("klubber") or []
+    if not klubber:
+        return 0
+    fra_m, til_m = fra.replace(day=1), (til.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    maneder = []
+    d = fra_m
+    while d <= til_m:
+        maneder.append(d.strftime("%Y-%m"))
+        d = (d.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+    rader, feil = [], 0
+    for kl in klubber:
+        kid = str(kl.get("fiksId") or "").strip()
+        if not kid:
+            continue
+        try:
+            kamper = les_kamper(last_ned_excel(kid, kl.get("navn", kid), fra_m, til_m, klubb=True))
+        except Exception as e:  # noqa: BLE001
+            print(f"- klubb {kl.get('navn', kid)} ({kid}): FEIL ved henting: {e}")
+            feil += 1
+            continue
+        pre = vare_lag(kamper)
+        per_mnd = {m: [] for m in maneder}
+        for k in kamper:
+            vare = [{"lag": f"{klasse(k['turnering'])} {navn}", "hjemme": side == "h"}
+                    for side, navn in (("h", k["hjemmelag"]), ("b", k["bortelag"])) if pre and navn.startswith(pre)]
+            if k["dato"][:7] in per_mnd:
+                per_mnd[k["dato"][:7]].append({"kampnr": k["kampnr"], "dato": k["dato"], "tid": k["tid"], "hjem": k["hjemmelag"],
+                                               "borte": k["bortelag"], "bane": k["baneNavn"], "turnering": k["turnering"],
+                                               "spillform": k["spillform"], "resultat": k["resultat"], "vare": vare})
+        print(f"- klubb {kl.get('navn', kid)} ({kid}): {len(kamper)} kamper, lagnavn «{pre}»")
+        rader += [{"id": f"{kid}-{m}", "data": {"klubbId": kid, "klubb": kl.get("navn", ""), "maned": m, "kamper": v}} for m, v in per_mnd.items()]
+    if rader and not dry:
+        db.upsert("lagkamper", rader)
+        print(f"Lagkamper lagret: {len(rader)} klubb-måneder.")
+    return feil
 
 
 if __name__ == "__main__":

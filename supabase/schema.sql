@@ -10,6 +10,8 @@
 --   treninger   treningstider: faste hver uke i en periode (type = 'fast') eller enkelttreninger (type = 'enkelt')
 --   foresporsler forespørsler om banetid fra trenere (status: ny / godkjent / avslatt)
 --   brukere     hvem som kan logge inn og hva de får gjøre (id = e-post med små bokstaver)
+--   grupper     treningsgrupper: et treningsnavn (f.eks. «G16») koblet til lag på fotball.no
+--   lagkamper   alle kamper for klubbene som bruker banene (også bortekamper), én rad per klubb per måned
 --
 -- Roller (data->>'rolle' i brukere):
 --   admin         alt, inkludert brukere, anlegg, kamper og godkjenning av forespørsler
@@ -48,6 +50,18 @@ create table if not exists public.foresporsler (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.grupper (
+  id         text primary key,
+  data       jsonb not null,                            -- {lag: "G16", fotballLag: ["G16 Bjørkelangen", ...]}
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.lagkamper (
+  id         text primary key,                          -- "<klubb-ID>-<ÅÅÅÅ-MM>"
+  data       jsonb not null,                            -- {klubbId, maned, kamper: [...]}; skrives av hent_kamper.py
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.brukere (
   id         text primary key check (id = lower(id)),   -- e-postadressen med små bokstaver
   data       jsonb not null,                            -- {epost, navn, rolle, lag: [...]}
@@ -70,7 +84,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere'] loop
+  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper'] loop
     execute format('drop trigger if exists %I_updated_at on public.%I', t, t);
     execute format('create trigger %I_updated_at before update on public.%I for each row execute function public.sett_updated_at()', t, t);
   end loop;
@@ -142,13 +156,15 @@ alter table public.kamper       enable row level security;
 alter table public.treninger    enable row level security;
 alter table public.foresporsler enable row level security;
 alter table public.brukere      enable row level security;
+alter table public.grupper      enable row level security;
+alter table public.lagkamper    enable row level security;
 
 -- Fjern alle tidligere regler på tabellene, så fila kan kjøres på nytt
 do $$
 declare r record;
 begin
   for r in select policyname, tablename from pg_policies
-           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere') loop
+           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper') loop
     execute format('drop policy %I on public.%I', r.policyname, r.tablename);
   end loop;
 end $$;
@@ -177,6 +193,16 @@ create policy "admin og trenere endrer egne" on public.treninger for update to a
 create policy "admin og trenere sletter egne" on public.treninger for delete to authenticated
   using (public.er_admin() or public.har_lag(data->>'lag'));
 
+-- grupper: alle leser, admin og trener+ (for egne lag) endrer
+create policy "alle kan lese" on public.grupper for select to anon, authenticated using (true);
+create policy "admin og trener+ endrer egne" on public.grupper for all to authenticated
+  using (public.er_admin() or (public.min_rolle() = 'trener_pluss' and public.har_lag(data->>'lag')))
+  with check (public.er_admin() or (public.min_rolle() = 'trener_pluss' and public.har_lag(data->>'lag')));
+
+-- lagkamper: alle leser, admin kan importere for hånd (hent_kamper.py bruker service_role)
+create policy "alle kan lese" on public.lagkamper for select to anon, authenticated using (true);
+create policy "admin endrer" on public.lagkamper for all to authenticated using (public.er_admin()) with check (public.er_admin());
+
 -- foresporsler: trenere sender og ser sine egne, admin ser og behandler alle
 create policy "admin og avsender leser" on public.foresporsler for select to authenticated
   using (public.er_admin() or epost = public.min_epost());
@@ -198,13 +224,15 @@ grant insert, update, delete on public.config, public.kamper, public.treninger t
 grant select, insert, update, delete on public.foresporsler, public.brukere to authenticated;
 -- anon får lese, men tilgangsreglene over gir dem ingen rader
 grant select on public.foresporsler, public.brukere to anon;
+grant select on public.grupper, public.lagkamper to anon, authenticated;
+grant insert, update, delete on public.grupper, public.lagkamper to authenticated;
 
 -- Sanntid: åpne sider oppdateres når noen andre endrer noe
 do $$
 declare t text;
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere'] loop
+    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper'] loop
       if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
         execute format('alter publication supabase_realtime add table public.%I', t);
       end if;
