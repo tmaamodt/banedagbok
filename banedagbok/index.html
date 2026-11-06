@@ -370,8 +370,20 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
   <section id="v-lag" hidden>
     <div class="cols oppsett">
       <div class="panel" style="display:grid;gap:10px;align-content:start">
-        <div class="bar"><h2>Treningsgrupper</h2><span class="spacer"></span><label class="note" id="grpMineWrap" hidden><input type="checkbox" id="grpMine" checked> Bare mine</label></div>
-        <p class="note">En treningsgruppe er navnet som brukes på treningstidene, for eksempel «G16». Koble gruppen til lagene på fotball.no, for eksempel G16-1, G16-2 og G15, så vises lagenes kamper sammen med gruppens treninger.</p>
+        <div class="bar"><h2>Lag</h2><span class="spacer"></span><label class="note" id="grpMineWrap" hidden><input type="checkbox" id="grpMine" checked> Bare mine</label><button class="btn primary" type="button" id="lagNyBtn" hidden>+ Nytt lag</button></div>
+        <p class="note">Et lag er navnet som brukes på treningstidene, for eksempel «G16». Laget har årskull, trenere og kobling til lagene på fotball.no (for eksempel G16-1, G16-2 og G15), så vises kampene sammen med treningene.</p>
+        <form class="form" id="lagNy" hidden>
+          <label>Navn<input type="text" id="lagNy-navn" placeholder="f.eks. G10 BSF" required></label>
+          <label>Kjønn<select id="lagNy-kjonn"></select></label>
+          <label data-arskull>Årskull (valgfritt)<input type="text" id="lagNy-arskull" placeholder="f.eks. 2010, 2011"></label>
+          <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit">Opprett lag</button><button class="btn ghost" type="button" id="lagNy-avbryt">Avbryt</button><span class="note" id="lagNy-msg"></span></div>
+        </form>
+        <details id="omdop" hidden><summary class="btn" style="display:inline-block">Bytt navn på flere lag</summary>
+          <div style="display:grid;gap:8px;margin-top:8px">
+            <p class="note">For eksempel ved nyttår, når G10 blir G11. Skriv inn nye navn og lagre. Treninger, kamper, forespørsler, brukere og koblinger følger med. Lag kan bytte navn i kjede, så G15 → G16 og G16 → G17 går fint.</p>
+            <div id="omdopList" style="display:grid;gap:4px"></div>
+            <div class="bar"><button class="btn primary" type="button" id="omdopGo">Lagre nye navn</button><span class="note" id="omdopMsg"></span></div>
+          </div></details>
         <div class="grplist" id="grpList"></div>
         <div id="klubbAdmin" hidden style="display:grid;gap:8px;margin-top:10px">
           <h3>Klubber som hentes fra fotball.no</h3>
@@ -383,7 +395,10 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
         <div class="bar"><h2 id="grpTitle">Velg en treningsgruppe</h2><span class="spacer"></span>
           <button class="btn" id="grpPrev" aria-label="Forrige uker">←</button><span class="note num" id="grpRange"></span><button class="btn" id="grpNext" aria-label="Neste uker">→</button><button class="btn ghost" id="grpToday">I dag</button></div>
+        <div id="lagEdit" style="display:grid;gap:10px"></div>
+        <h3>Lag på fotball.no</h3>
         <div id="grpTeams" style="display:grid;gap:8px"></div>
+        <h3>Treninger og kamper</h3>
         <div class="sched" id="grpSched"></div>
       </div>
     </div>
@@ -592,7 +607,7 @@ const toMin = t => { const m = /^(\d{1,2})[:.](\d{2})/.exec(t || ""); return m ?
 const fromMin = m => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
 const DAGER = ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"];
 const MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
-const fmtDate = s => { const d = parseYmd(s); return `${DAGER[(d.getDay() + 6) % 7].slice(0, 3)} ${d.getDate()}. ${MND[d.getMonth()]}`; };
+const fmtDate = s => { if (!/^\d{4}-\d{2}-\d{2}/.test(s || "")) return "?"; const d = parseYmd(s); return `${DAGER[(d.getDay() + 6) % 7].slice(0, 3)} ${d.getDate()}. ${MND[d.getMonth()]}`; };
 const uid = () => { const r = new Uint8Array(9); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(r) : r.forEach((_, i) => { r[i] = Math.random() * 256; }); return [...r].map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 14); };
 const clone = o => JSON.parse(JSON.stringify(o));
 const DAY_START = 8 * 60, DAY_END = 23 * 60;
@@ -915,6 +930,52 @@ function lagOpptatt(lagNavn, date, start, end, anleggId) {
   return { status: teams.every(l => busy.has(l)) ? "borte" : "delvis", hits };
 }
 const kampTekst = k => `${k.hjemme ? "hjemme mot " + esc((k.borte || "").trim()) : "borte mot " + esc((k.hjem || "").trim())}, ${esc(k.bane || "")}`;
+
+// ---------- lag: årskull, navnebytte og sletting ----------
+const KJONN = { G: "Gutter", J: "Jenter", M: "Mix", H: "Herrer", D: "Damer", "": "Annet" };
+// Årskull: valgfri liste med fødselsår (et lag kan ha flere, f.eks. G16 med 2010 og 2011). Seniorlag har ingen.
+const harArskull = kj => kj !== "H" && kj !== "D";
+const parseArskull = v => [...new Set(String(v || "").split(/[^0-9]+/).map(Number).filter(y => y >= 1950 && y <= 2100))].sort();
+const arskullTekst = g => { const a = Array.isArray(g?.arskull) ? g.arskull : g?.arskull ? [g.arskull] : []; return a.join(", "); };
+function alleLagNavn() { return [...new Set([...(S.cfg.lag || []), ...Object.values(S.grupper).map(g => g.lag)])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true })); }
+// Bruken av et lag i resten av banedagboken
+function lagBruk(navn) {
+  return {
+    treninger: Object.entries(S.treninger).filter(([, t]) => t.lag === navn),
+    kamper: Object.entries(S.kamper).filter(([, k]) => k.lag === navn),
+    foresporsler: Object.entries(S.foresporsler).filter(([, r]) => r.lag === navn),
+    brukere: Object.entries(S.brukere).filter(([, u]) => (u.lag || []).includes(navn)),
+  };
+}
+async function runJobs(jobs, onProgress) {
+  let n = 0; const q = [...jobs];
+  const step = async () => { while (q.length) { const [col, id, doc] = q.shift(); doc === null ? await S.backend.del(col, id) : await S.backend.put(col, id, doc); n++; onProgress?.(n, jobs.length); } };
+  await Promise.all([step(), step(), step()]);
+}
+// Nytt navn på et lag: oppdaterer alt som peker på det gamle navnet
+async function renameLag(gammelt, nytt, onProgress) {
+  const b = lagBruk(gammelt), jobs = [];
+  for (const [id, t] of b.treninger) jobs.push(["treninger", id, { ...clone(t), lag: nytt }]);
+  for (const [id, k] of b.kamper) jobs.push(["kamper", id, { ...clone(k), lag: nytt, ...(k.hjemmelag === gammelt ? { hjemmelag: nytt } : {}), ...(k.tittel === gammelt ? { tittel: nytt } : {}) }]);
+  for (const [id, r] of b.foresporsler) jobs.push(["foresporsler", id, { ...clone(r), lag: nytt }]);
+  for (const [id, u] of b.brukere) jobs.push(["brukere", id, { ...clone(u), lag: u.lag.map(x => x === gammelt ? nytt : x) }]);
+  const ge = Object.entries(S.grupper).find(([, g]) => g.lag === gammelt);
+  jobs.push(["grupper", ge ? ge[0] : gruppeId(nytt), { ...(ge ? clone(ge[1]) : { fotballLag: [], lagIder: [] }), lag: nytt }]);
+  const c = cfgDraft(); c.lag = [...new Set((c.lag || []).map(x => x === gammelt ? nytt : x).concat([nytt]))].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+  await S.backend.saveCfg(c);
+  await runJobs(jobs, onProgress);
+  if (S.lagSel === gammelt) { S.lagSel = nytt; saveUi(); }
+  if (P.cells && Object.values(P.cells).some(v => v.lag === gammelt)) P.key = null; // planleggingen leses inn på nytt
+  return { treninger: b.treninger.length, kamper: b.kamper.length, foresporsler: b.foresporsler.length, brukere: b.brukere.length };
+}
+async function deleteLag(navn, medTreninger) {
+  const b = lagBruk(navn), jobs = [];
+  for (const [id, u] of b.brukere) jobs.push(["brukere", id, { ...clone(u), lag: u.lag.filter(x => x !== navn) }]);
+  if (medTreninger) for (const [id] of b.treninger) jobs.push(["treninger", id, null]);
+  const ge = Object.entries(S.grupper).find(([, g]) => g.lag === navn); if (ge) jobs.push(["grupper", ge[0], null]);
+  const c = cfgDraft(); c.lag = (c.lag || []).filter(x => x !== navn); await S.backend.saveCfg(c);
+  await runJobs(jobs);
+}
 
 // Annenhver uke: partalls- eller oddetallsuker (ISO-ukenummer)
 const weekMatches = (t, date) => !t.uker || (isoWeek(parseYmd(date)) % 2 === 0) === (t.uker === "partall");
@@ -1684,17 +1745,34 @@ S.lagWeek = monday(new Date());
 function renderLag() {
   const mine = isTrainer() && $("#grpMine").checked;
   $("#grpMineWrap").hidden = !isTrainer();
-  const names = [...new Set([...(S.cfg.lag || []), ...Object.values(S.grupper).map(g => g.lag)])].filter(l => !mine || myLag().includes(l)).sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+  const names = alleLagNavn().filter(l => !mine || myLag().includes(l));
   if (!S.lagSel || !names.includes(S.lagSel)) S.lagSel = names[0] || null;
-  $("#grpList").innerHTML = names.length ? names.map(l => { const g = gruppe(l), ts = grpTeams(g), ventende = (g?.lagIder || []).filter(id => !teamsForId(id).length).length;
-    return `<button type="button" data-grp="${esc(l)}" aria-pressed="${l === S.lagSel}"><b>${esc(l)}</b><small>${ts.length || ventende ? esc([...ts, ...(ventende ? [`${ventende} lag venter på henting`] : [])].join(" · ")) : "Ikke koblet til lag på fotball.no"}</small></button>`; }).join("")
-    : `<p class="note">Ingen lag ennå. Admin legger inn lag under Brukere, eller de kommer med når en treningsplan lagres.</p>`;
+  const year = new Date().getFullYear(), trenereFor = l => Object.values(S.brukere).filter(u => (u.lag || []).includes(l)).map(u => u.navn || u.epost);
+  $("#lagNyBtn").hidden = !isAdmin();
+  $("#grpList").innerHTML = names.length ? names.map(l => { const g = gruppe(l), ts = grpTeams(g), ventende = (g?.lagIder || []).filter(id => !teamsForId(id).length).length, tr = trenereFor(l);
+    const info = [arskullTekst(g) ? `født ${arskullTekst(g)}` : "", tr.length ? tr.join(", ") : "", ts.length || ventende ? `${ts.length + ventende} lag på fotball.no` : ""].filter(Boolean).join(" · ");
+    return `<button type="button" data-grp="${esc(l)}" aria-pressed="${l === S.lagSel}"><b>${esc(l)}</b><small>${esc(info || "Ingen årskull, trenere eller kobling ennå")}</small></button>`; }).join("")
+    : `<p class="note">Ingen lag ennå.${isAdmin() ? " Opprett det første med «+ Nytt lag»." : ""}</p>`;
+  // bytt navn på flere lag (admin)
+  $("#omdop").hidden = !isAdmin();
+  if (isAdmin() && !$("#omdop").open) $("#omdopList").innerHTML = alleLagNavn().map(l => `<label class="bar" style="gap:8px"><span style="width:16ch;font-weight:600">${esc(l)}</span>→<input type="text" data-om="${esc(l)}" value="${esc(l)}" style="width:18ch" aria-label="Nytt navn for ${esc(l)}"></label>`).join("");
   // klubber (admin)
   $("#klubbAdmin").hidden = !isAdmin();
   $("#klubbChips").innerHTML = (S.cfg.klubber || []).map(k => `<span class="chip"><label style="display:flex;gap:4px;align-items:center;font-weight:400" title="Vis klubbens lag som forslag når treningsgrupper kobles"><input type="checkbox" data-kforslag="${esc(k.fiksId)}"${k.forslag !== false ? " checked" : ""}> ${esc(k.navn)}</label> <span class="muted num">${esc(k.fiksId)}</span><button type="button" data-kdel="${esc(k.fiksId)}" aria-label="Fjern ${esc(k.navn)}">✕</button></span>`).join("") || `<span class="note">Ingen klubber.</span>`;
   const l = S.lagSel; $("#grpTitle").textContent = l || "Velg en treningsgruppe";
   const we = addDays(S.lagWeek, 27); $("#grpRange").textContent = `${fmtDate(ymd(S.lagWeek))} – ${fmtDate(ymd(we))}`;
-  if (!l) { $("#grpTeams").innerHTML = ""; $("#grpSched").innerHTML = ""; return; }
+  if (!l) { $("#grpTeams").innerHTML = ""; $("#grpSched").innerHTML = ""; $("#lagEdit").innerHTML = ""; return; }
+  // laget: navn, kjønn, årskull, trenere
+  { const g = gruppe(l) || {}, adm = isAdmin(), bruk = lagBruk(l);
+    const trenere = Object.entries(S.brukere).filter(([, u]) => u.rolle !== "admin").sort(([, a], [, b]) => (a.navn || "").localeCompare(b.navn || "", "nb"));
+    $("#lagEdit").innerHTML = adm ? `<form class="form" id="lagEditF">
+        <label>Navn<input type="text" id="le-navn" value="${esc(l)}"></label>
+        <label>Kjønn<select id="le-kjonn">${Object.entries(KJONN).map(([v, n]) => `<option value="${v}"${(g.kjonn || "") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+        <label data-arskull${harArskull(g.kjonn || "") ? "" : " hidden"}>Årskull (valgfritt)<input type="text" id="le-arskull" value="${esc(arskullTekst(g))}" placeholder="f.eks. 2010, 2011"></label>
+        <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit">Lagre</button><span class="note" id="le-msg"></span></div></form>
+      <div><b>Trenere</b> <span class="note">(trenere og trener+ med tilgang til laget)</span><div class="chips" style="margin-top:6px">${trenere.length ? trenere.map(([id, u]) => `<label class="chip" style="padding-right:10px"><input type="checkbox" data-tr="${esc(id)}"${(u.lag || []).includes(l) ? " checked" : ""}> ${esc(u.navn || u.epost)} <span class="muted">${ROLLER[u.rolle] || ""}</span></label>`).join("") : `<span class="note">Ingen trenere ennå. Legg dem til under Brukere.</span>`}</div></div>
+      <div class="bar"><span class="note">Brukes av ${bruk.treninger.length} treninger, ${bruk.kamper.length} treningskamper og bookinger, ${bruk.foresporsler.length} forespørsler.</span><span class="spacer"></span><button class="btn danger" type="button" id="le-slett">Slett laget</button></div>`
+      : `<div class="note">${g.kjonn ? KJONN[g.kjonn] + " · " : ""}${arskullTekst(g) ? `født ${esc(arskullTekst(g))} · ` : ""}Trenere: ${esc(trenereFor(l).join(", ") || "ingen")}</div>`; }
   // koblede lag
   const g = gruppe(l), linked = g?.fotballLag || [], ider = g?.lagIder || [], can = canEditGroup(l), alle = alleFotballLag().filter(t => !grpTeams(g).includes(t));
   const tok = klasseToken(l), forslag = alle.filter(t => !linked.includes(t) && tok && t.startsWith(tok + " ")), rest = alle.filter(t => !linked.includes(t) && !forslag.includes(t));
@@ -1729,9 +1807,75 @@ function renderLag() {
 }
 async function saveGroup(lag, fotballLag, lagIder) {
   const id = gruppe(lag) ? Object.entries(S.grupper).find(([, g]) => g.lag === lag)[0] : gruppeId(lag);
-  try { await S.backend.put("grupper", id, { lag, fotballLag, lagIder: lagIder || gruppe(lag)?.lagIder || [] }); } catch (e) { const m = $("#grpMsg"); if (m) m.innerHTML = `<span class="err">${esc(errText(e))}</span>`; }
+  try { await S.backend.put("grupper", id, { ...clone(gruppe(lag) || {}), lag, fotballLag, lagIder: lagIder || gruppe(lag)?.lagIder || [] }); } catch (e) { const m = $("#grpMsg"); if (m) m.innerHTML = `<span class="err">${esc(errText(e))}</span>`; }
 }
 function initLag() {
+  $("#lagNy-kjonn").innerHTML = Object.entries(KJONN).map(([v, n]) => `<option value="${v}">${n}</option>`).join("");
+  $("#lagNyBtn").onclick = () => { $("#lagNy").hidden = false; $("#lagNy-navn").focus(); };
+  $("#lagNy-avbryt").onclick = () => { $("#lagNy").hidden = true; };
+  // seniorlag har ikke årskull
+  $("#lagNy-kjonn").addEventListener("change", () => { $("#lagNy [data-arskull]").hidden = !harArskull($("#lagNy-kjonn").value); });
+  $("#lagEdit").addEventListener("change", e => { if (e.target.id === "le-kjonn") $("#lagEdit [data-arskull]").hidden = !harArskull(e.target.value); });
+  $("#lagNy").onsubmit = async e => {
+    e.preventDefault(); const navn = $("#lagNy-navn").value.replace(/\s+/g, " ").trim(), msg = $("#lagNy-msg"); if (!navn) return;
+    if (alleLagNavn().includes(navn)) { msg.innerHTML = `<span class="err">${esc(navn)} finnes allerede.</span>`; return; }
+    try {
+      S.lagSel = navn; saveUi();
+      const c = cfgDraft(); c.lag = [...new Set([...(c.lag || []), navn])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true })); await S.backend.saveCfg(c);
+      const kj = $("#lagNy-kjonn").value;
+      S.lagSel = navn; saveUi();
+      await S.backend.put("grupper", gruppeId(navn), { lag: navn, kjonn: kj, arskull: harArskull(kj) ? parseArskull($("#lagNy-arskull").value) : [], fotballLag: [], lagIder: [] });
+      $("#lagNy").hidden = true; $("#lagNy").reset(); msg.textContent = ""; renderLag();
+    } catch (er) { msg.innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+  };
+  $("#lagEdit").addEventListener("submit", async e => {
+    if (e.target.id !== "lagEditF") return; e.preventDefault();
+    const l = S.lagSel, nytt = $("#le-navn").value.replace(/\s+/g, " ").trim(), msg = $("#le-msg");
+    if (!nytt) return; if (nytt !== l && alleLagNavn().includes(nytt)) { msg.innerHTML = `<span class="err">${esc(nytt)} finnes allerede.</span>`; return; }
+    try {
+      const kj = $("#le-kjonn").value, attrs = { kjonn: kj, arskull: harArskull(kj) ? parseArskull($("#le-arskull").value) : [] };
+      let res = null;
+      if (nytt !== l) res = await renameLag(l, nytt, (n, t) => { msg.textContent = `Oppdaterer … ${n} av ${t}`; });
+      const ge = Object.entries(S.grupper).find(([, g]) => g.lag === nytt);
+      await S.backend.put("grupper", ge ? ge[0] : gruppeId(nytt), { ...(ge ? clone(ge[1]) : { fotballLag: [], lagIder: [] }), lag: nytt, ...attrs });
+      if (!(S.cfg.lag || []).includes(nytt)) { const c = cfgDraft(); c.lag = [...(c.lag || []), nytt]; await S.backend.saveCfg(c); }
+      S.lagSel = nytt; saveUi(); renderLag();
+      $("#le-msg").innerHTML = `<span class="ok">Lagret.${res ? ` Nytt navn på ${res.treninger} treninger, ${res.kamper} treningskamper og bookinger, ${res.foresporsler} forespørsler og ${res.brukere} brukere.` : ""}</span>`;
+    } catch (er) { msg.innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+  });
+  $("#lagEdit").addEventListener("change", async e => {
+    const id = e.target.dataset.tr; if (!id) return; const l = S.lagSel, u = clone(S.brukere[id]);
+    u.lag = e.target.checked ? [...new Set([...(u.lag || []), l])] : (u.lag || []).filter(x => x !== l);
+    try { await S.backend.put("brukere", id, u); } catch (er) { e.target.checked = !e.target.checked; $("#le-msg").innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+  });
+  $("#lagEdit").addEventListener("click", e => {
+    const b = e.target.closest("#le-slett"); if (!b || b.dataset.wired) return; b.dataset.wired = "1";
+    const l = S.lagSel, n = lagBruk(l).treninger.length;
+    confirmBtn(b, n ? `Bekreft: slett ${l} og ${n} treninger` : `Bekreft: slett ${l}`, async () => { await deleteLag(l, true); S.lagSel = null; saveUi(); renderLag(); });
+    b.click();
+  });
+  $("#omdopGo").onclick = async () => {
+    const btn = $("#omdopGo"), msg = $("#omdopMsg");
+    let par = $$("#omdopList [data-om]").map(i => [i.dataset.om, i.value.replace(/\s+/g, " ").trim()]).filter(([a, b]) => b && a !== b);
+    if (!par.length) { msg.textContent = "Ingen navn er endret."; return; }
+    const ny = par.map(([, b]) => b);
+    if (new Set(ny).size !== ny.length) { msg.innerHTML = `<span class="err">To lag kan ikke få samme navn.</span>`; return; }
+    const blir = new Set(par.map(([a]) => a)), opptatt = alleLagNavn().filter(l => !blir.has(l));
+    const kræsj = ny.filter(n => opptatt.includes(n)); if (kræsj.length) { msg.innerHTML = `<span class="err">Finnes allerede: ${kræsj.map(esc).join(", ")}.</span>`; return; }
+    btn.disabled = true; let tot = 0, n = 0;
+    try {
+      // i kjede: ta først de som bytter til et navn som ikke er i bruk (G16 → G17 før G15 → G16)
+      while (par.length) {
+        const i = par.findIndex(([, b]) => !alleLagNavn().includes(b));
+        if (i < 0) throw new Error("Navnene går i ring (f.eks. A → B og B → A). Ta det i to omganger.");
+        const [a, b] = par.splice(i, 1)[0]; msg.textContent = `${a} → ${b} …`;
+        tot += (await renameLag(a, b)).treninger; n++;
+      }
+      msg.innerHTML = `<span class="ok">${n} lag har fått nytt navn (${tot} treninger oppdatert).</span>`;
+      $("#omdop").open = false;
+    } catch (er) { msg.innerHTML = `<span class="err">${esc(er.message && !er.code ? er.message : errText(er))}</span>`; }
+    btn.disabled = false; renderLag();
+  };
   $("#grpList").addEventListener("click", e => { const b = e.target.closest("[data-grp]"); if (b) { S.lagSel = b.dataset.grp; saveUi(); renderLag(); } });
   $("#grpMine").onchange = renderLag;
   $("#grpPrev").onclick = () => { S.lagWeek = addDays(S.lagWeek, -28); renderLag(); };

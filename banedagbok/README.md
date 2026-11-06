@@ -39,7 +39,15 @@ Rødt kollisjonsvarsel gis bare når to treninger, to kamper eller en booking kr
 
 ## Lag og treningsgrupper
 
-Treningstidene bruker ofte et fellesnavn, for eksempel «G16», mens gruppen spiller kamper som flere lag på fotball.no. Under fanen **Lag** kobles hver treningsgruppe til lagene sine.
+Treningstidene bruker ofte et fellesnavn, for eksempel «G16», mens gruppen spiller kamper som flere lag på fotball.no. Fanen **Lag** er stedet der lag opprettes og vedlikeholdes.
+
+- **Nytt lag (admin):** navn, kjønn og årskull. Årskull er valgfritt og kan være flere fødselsår, for eksempel 2010 og 2011 for et G16-lag. Seniorlag (Herrer og Damer) har ikke årskull.
+- **Trenere:** kryss av for hvilke trenere og Trener+ som har laget. En bruker kan ha flere lag, og det samme kan settes under Brukere.
+- **Nytt navn:** endre navnet og lagre. Treninger, treningskamper, bookinger, forespørsler, brukere, koblingen til fotball.no og laglista oppdateres med en gang, så laget trenger ikke opprettes på nytt.
+- **Bytt navn på flere lag:** brukes ved nyttår, når G10 blir G11. Skriv inn nye navn i lista og lagre alt på én gang. Navnebytte i kjede håndteres, så G16 → G17 går før G15 → G16. Ingenting endres automatisk ut fra årskull.
+- **Slett laget:** fjerner laget fra lista, brukerne og koblingen. Lagets treninger slettes også, etter en ekstra bekreftelse.
+
+Hvert lag kobles til lagene sine på fotball.no.
 
 - **Koble lag:** admin kan koble alle grupper, Trener+ bare sine egne lag. Siden foreslår lag med samme årsklasse, gruppert per klubb.
 - **Forslag per klubb:** i klubblista nederst krysser admin av hvilke klubber som skal gi forslag. En klubb som bare er hentet for enkelte kamper, kan slås av, så lagene dens ikke dukker opp.
