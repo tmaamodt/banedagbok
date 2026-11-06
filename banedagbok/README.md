@@ -57,9 +57,11 @@ Treningstidene bruker ofte et fellesnavn, for eksempel «G16», mens gruppen spi
 Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider for en periode, på samme måte som i treningsarket.
 
 1. Velg en periode fra–til, eller bruk et hurtigvalg som «Høstsesong».
-2. Velg ukedag. Rutenettet har én rad per 30 minutter og én kolonne per kvarter (A–D) på hver bane, gruppert per anlegg. Baner uten kvarter vises som halvdeler eller hel bane.
+2. Hele uka vises nedover, mandag til søndag. Ukedagsknappene hopper til dagen.
+   - Rutenettet har én rad per 30 minutter og én kolonne per kvarter (A–D) på hver bane, gruppert per anlegg. Baner uten kvarter vises som halvdeler eller hel bane.
+   - Kryss av under «Vis baner» for hvilke baner som skal vises. Treninger på skjulte baner blir likevel med når planen lagres.
 3. Velg et lag og mal rutene laget skal ha. Klikk og dra for flere ruter, og klikk på en rute med samme lag for å viske den ut. Velg «Partallsuker» eller «Oddetallsuker» for treninger annenhver uke.
-4. Kamper og bookinger i perioden vises med ⚽ og antall i rutene. Ruter der et lag kolliderer med kamper, får rød kant og listes i oppsummeringen.
+4. Planleggingen viser bare treninger. Kamper vises ikke her, siden de uansett går foran trening (se ukevisningen).
 5. Trykk **Lagre planen**:
    - Ruter som henger sammen blir én fast trening.
    - Et lag med A og B samtidig får halvdelen, og et lag med alle fire kvarterene får hele banen.

@@ -153,14 +153,20 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
 .palette .lc { border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; font-size: 13px; font-weight: 600; color: var(--ink) }
 .palette .lc[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px }
-.plwrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); touch-action: none }
+table.pl tr.dayrow th { position: sticky; left: 0; text-align: left; background: var(--ink); color: var(--bg); font: 700 15px var(--f-display); padding: 5px 10px; letter-spacing: .02em }
+.plbaner { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px }
+.plbaner label { display: flex; gap: 5px; align-items: center; color: var(--ink); font-weight: 400 }
+.plwrap { overflow: auto; max-height: 82vh; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); touch-action: none }
 table.pl { border-collapse: separate; border-spacing: 0; width: auto; font-size: 12px; user-select: none }
 table.pl th, table.pl td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; text-transform: none; letter-spacing: 0 }
 table.pl thead th { position: sticky; background: var(--surface); z-index: 2; padding: 4px 6px; font: 600 12px var(--f-body); color: var(--muted); text-align: center }
 table.pl thead tr:nth-child(1) th { top: 0; font: 700 14px var(--f-display); color: var(--ink) }
 table.pl thead tr:nth-child(2) th { top: 26px }
 table.pl thead tr:nth-child(3) th { top: 50px; font: 500 11px var(--f-mono) }
-table.pl th.t { position: sticky; left: 0; z-index: 3; background: var(--surface); font: 500 11px var(--f-mono); color: var(--muted); padding: 0 6px; text-align: right; white-space: nowrap }
+table.pl th.t { position: sticky; left: 0; z-index: 1; background: var(--surface); font: 500 11px var(--f-mono); color: var(--muted); padding: 0 6px; text-align: right; white-space: nowrap }
+/* overskriften ligger over rutene og tidskolonnen når man ruller; hjørnet øverst til venstre over alt */
+table.pl thead th { z-index: 3 }
+table.pl thead th.t { z-index: 4 }
 table.pl tbody tr.hr th.t, table.pl tbody tr.hr td { border-top: 1px solid var(--muted) }
 table.pl td.pc { width: 74px; min-width: 74px; height: 24px; cursor: crosshair; position: relative; vertical-align: top }
 table.pl td.pc.q1 { border-right: 2px solid var(--pitch) }
@@ -395,14 +401,15 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <label>Kopier inn fra<select id="pl-copy"></select></label>
         <label>Importer treningsark (Excel)<input type="file" id="pl-file" accept=".xlsx,.xls"></label>
       </form>
-      <p class="note">Velg periode, mal inn lagene i rutenettet og lagre. Hver rute er 30 minutter på ett kvarter av banen. Ruter som henger sammen blir én fast trening, og et lag som har både A og B samtidig får halvdelen. Planen erstatter bare treninger som er laget i den samme planen. Andre faste treninger vises skravert og røres ikke.</p>
+      <p class="note">Velg periode, mal inn lagene i rutenettet og lagre. Hver rute er 30 minutter på ett kvarter av banen. Ruter som henger sammen blir én fast trening, og et lag som har både A og B samtidig får halvdelen. Hele uka vises nedover, og knappene med ukedager hopper til dagen. Planen erstatter bare treninger som er laget i den samme planen. Andre faste treninger vises skravert og røres ikke. Kamper vises ikke her, de går uansett foran trening.</p>
       <div id="plReport" class="note"></div>
     </div>
     <div class="panel" style="display:grid;gap:10px;min-width:0">
       <div class="bar" style="align-items:flex-start">
-        <div class="daytabs" id="plDays" role="group" aria-label="Ukedag"></div><span class="spacer"></span>
+        <div class="daytabs" id="plDays" role="group" aria-label="Gå til ukedag"></div><span class="spacer"></span>
         <label class="note">Fra kl. <select id="pl-from"></select></label><label class="note">til <select id="pl-to"></select></label>
       </div>
+      <div class="plbaner" id="plBaner" role="group" aria-label="Baner som vises"></div>
       <div class="palette" id="plPal"></div>
       <div class="plwrap"><table class="pl" id="plGrid"></table></div>
       <div class="bar"><button class="btn primary" id="plSave">Lagre planen</button><button class="btn ghost" id="plReset">Forkast endringer</button><span id="plMsg" class="note"></span></div>
@@ -1781,7 +1788,7 @@ function initLag() {
 // for baner uten kvarter). Ved lagring slås ruter sammen til så store deler av banen som finnes, og
 // sammenhengende tider til én trening.
 const SLOT = 30;
-const P = { key: null, fom: "", tom: "", day: 1, lag: null, uker: "", erase: false, cells: {}, orig: {}, dirty: false, from: 16 * 60, to: 22 * 60, painting: false, mode: null, extraLag: [] };
+const P = { hidden: new Set((() => { try { return JSON.parse(localStorage.getItem("banedagbok:plbaner") || "[]"); } catch (e) { return []; } })()), key: null, fom: "", tom: "", day: 1, lag: null, uker: "", erase: false, cells: {}, orig: {}, dirty: false, from: 16 * 60, to: 22 * 60, painting: false, mode: null, extraLag: [] };
 const planKey = (fom, tom) => `${fom}_${tom}`;
 const lagHue = l => { let h = 0; for (const c of String(l)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const lagStyle = l => `background:hsl(${lagHue(l)} 55% var(--pl))`;
@@ -1824,20 +1831,6 @@ function lockedCells(cols) {
   for (const t of Object.values(S.treninger)) {
     if (isEnkelt(t) || t.plan === P.key || !t.fom || t.tom < P.fom || t.fom > P.tom) continue;
     for (const k of trainingCells(t, cols)) out[k] = t;
-  }
-  return out;
-}
-// Kamper og bookinger i perioden på samme ukedag, tid og del av banen
-function matchCells(cols) {
-  const out = {};
-  for (const k of Object.values(S.kamper)) {
-    if (!k.dato || k.dato < P.fom || k.dato > P.tom) continue;
-    const a = anlegg(k.anleggId), d = delbane(a, k.delbaneId); if (!a || !d) continue;
-    const day = (parseYmd(k.dato).getDay() + 6) % 7 + 1, s0 = toMin(k.tid), s1 = s0 + kampVarighet(k); if (s0 == null) continue;
-    for (const c of cols) {
-      if (c.a.id !== a.id || c.b.id !== d.baneId || c.zs + c.unit <= d.start || c.zs >= d.start + d.bredde) continue;
-      for (let m = Math.floor(s0 / SLOT) * SLOT; m < s1; m += SLOT) { const key = cellKey(a.id, d.baneId, day, c.zs, m); (out[key] ||= []).push(k); }
-    }
   }
   return out;
 }
@@ -1884,7 +1877,7 @@ function renderPlanState() {
 function renderPlan() {
   if (!isAdmin()) return;
   if (!P.key) { const pr = periodPresets()[3]; $("#pl-fom").value ||= pr[1]; $("#pl-tom").value ||= pr[2]; loadPlan($("#pl-fom").value, $("#pl-tom").value); }
-  const cols = planColumns(), locked = lockedCells(cols), matches = matchCells(cols);
+  const allCols = planColumns(), cols = allCols.filter(c => !P.hidden.has(c.a.id + "|" + c.b.id)), locked = lockedCells(cols);
   // planer som finnes
   const keys = [...new Set(Object.values(S.treninger).map(t => t.plan).filter(Boolean))].sort();
   const lbl = k => { const [a, b] = k.split("_"); return `${fmtDate(a)} ${a.slice(0, 4)} – ${fmtDate(b)} ${b.slice(0, 4)}`; };
@@ -1892,7 +1885,10 @@ function renderPlan() {
   $("#pl-copy").innerHTML = `<option value="">Velg plan …</option>` + keys.filter(k => k !== P.key).map(k => `<option value="${k}">${lbl(k)}</option>`).join("");
   // dager
   const perDay = d => new Set(Object.entries(P.cells).filter(([k]) => +k.split("|")[2] === d).map(([, v]) => v.lag)).size;
-  $("#plDays").innerHTML = DAGER.map((n, i) => `<button type="button" data-day="${i + 1}" aria-pressed="${P.day === i + 1}">${n.slice(0, 3)}<span class="n">${perDay(i + 1) || ""}</span></button>`).join("");
+  $("#plDays").innerHTML = DAGER.map((n, i) => `<button type="button" data-day="${i + 1}" aria-pressed="false">${n.slice(0, 3)}<span class="n">${perDay(i + 1) || ""}</span></button>`).join("");
+  // baner som vises
+  const baner = []; for (const c of allCols) if (!baner.some(x => x.a === c.a && x.b === c.b)) baner.push({ a: c.a, b: c.b });
+  $("#plBaner").innerHTML = `<span class="note">Vis baner:</span>` + baner.map(({ a, b }) => `<label><input type="checkbox" data-bv="${esc(a.id + "|" + b.id)}"${P.hidden.has(a.id + "|" + b.id) ? "" : " checked"}> ${esc(a.navn)} · ${esc(b.navn)}</label>`).join("");
   // tidsrom
   const hrs = [...Array(17)].map((_, i) => (7 + i) * 60);
   $("#pl-from").innerHTML = hrs.map(m => `<option value="${m}"${m === P.from ? " selected" : ""}>${fromMin(m)}</option>`).join("");
@@ -1910,32 +1906,35 @@ function renderPlan() {
   const byB = []; for (const c of cols) { const g = byB[byB.length - 1]; if (g && g.b === c.b) g.n++; else byB.push({ b: c.b, n: 1 }); }
   let h = `<thead><tr><th class="t"></th>${byA.map(g => `<th colspan="${g.n}">${esc(g.a.navn)}</th>`).join("")}</tr>
     <tr><th class="t"></th>${byB.map(g => `<th colspan="${g.n}">${esc(g.b.navn)}</th>`).join("")}</tr>
-    <tr><th class="t">${DAGER[P.day - 1]}</th>${cols.map(c => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>`;
-  const onDay = [...Object.keys(P.cells), ...Object.keys(locked)].filter(k => +k.split("|")[2] === P.day).map(k => +k.split("|")[4]);
-  const dFrom = Math.min(P.from, ...onDay), dTo = Math.max(P.to, ...onDay.map(m => m + SLOT));
-  for (let m = dFrom; m < dTo; m += SLOT) {
-    h += `<tr class="${m % 90 === 0 ? "hr" : ""}"><th class="t">${fromMin(m)}</th>`;
-    for (const c of cols) {
-      const k = cellKey(c.a.id, c.b.id, P.day, c.zs, m), v = P.cells[k], lk = locked[k], mt = matches[k] || [];
-      const above = P.cells[cellKey(c.a.id, c.b.id, P.day, c.zs, m - SLOT)];
-      const cls = ["pc", c.zs + c.unit === 6 && c.unit === 3 ? "q1" : "", c.last ? "end" : "", !c.on ? "off" : "", lk && !v ? "lock" : "", v && mt.length ? "clash" : ""].filter(Boolean).join(" ");
-      const tip = [v ? `${v.lag}${v.uker ? " (" + v.uker + "suker)" : ""}` : lk ? `${lk.lag}: fast trening utenfor planen (${fmtDate(lk.fom)}–${fmtDate(lk.tom)})` : "",
-        mt.length ? `${mt.length} kamper/bookinger i perioden: ` + mt.slice(0, 4).map(x => `${fmtDate(x.dato)} ${x.tid} ${x.kilde === "manuell" ? x.tittel : (x.hjemmelag || "").trim() + "–" + (x.bortelag || "").trim()}`).join("; ") : ""].filter(Boolean).join("\n");
-      h += `<td class="${cls}" data-k="${k}"${v ? ` style="${lagStyle(v.lag)}"` : lk ? ` style="${lagStyle(lk.lag)}"` : ""}${tip ? ` title="${esc(tip)}"` : ""}>`
-        + (v && (!above || above.lag !== v.lag || above.uker !== v.uker) ? `<span class="lab">${esc(v.lag)}</span>` : !v && lk ? `<span class="lab">${esc(lk.lag)}</span>` : "")
-        + (v?.uker ? `<span class="wk">${v.uker === "partall" ? "P" : "O"}</span>` : "") + (mt.length ? `<span class="km">⚽${mt.length}</span>` : "") + `</td>`;
+    <tr><th class="t">Tid</th>${cols.map(c => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>`;
+  if (!cols.length) h += `<tr><td class="note" style="padding:10px">Kryss av for minst én bane over.</td></tr>`;
+  for (let day = 1; day <= 7 && cols.length; day++) {
+    h += `<tr class="dayrow" id="pl-day-${day}"><th colspan="${cols.length + 1}">${DAGER[day - 1][0].toUpperCase() + DAGER[day - 1].slice(1)}</th></tr>`;
+    const onDay = [...Object.keys(P.cells), ...Object.keys(locked)].filter(k => +k.split("|")[2] === day).map(k => +k.split("|")[4]);
+    const dFrom = Math.min(P.from, ...onDay), dTo = Math.max(P.to, ...onDay.map(m => m + SLOT));
+    for (let m = dFrom; m < dTo; m += SLOT) {
+      h += `<tr class="${m % 90 === 0 ? "hr" : ""}"><th class="t">${fromMin(m)}</th>`;
+      for (const c of cols) {
+        const k = cellKey(c.a.id, c.b.id, day, c.zs, m), v = P.cells[k], lk = locked[k];
+        const above = P.cells[cellKey(c.a.id, c.b.id, day, c.zs, m - SLOT)];
+        const cls = ["pc", c.zs + c.unit === 6 && c.unit === 3 ? "q1" : "", c.last ? "end" : "", !c.on ? "off" : "", lk && !v ? "lock" : ""].filter(Boolean).join(" ");
+        const tip = v ? `${DAGER[day - 1]} ${fromMin(m)} · ${v.lag}${v.uker ? " (" + v.uker + "suker)" : ""}` : lk ? `${lk.lag}: fast trening utenfor planen (${fmtDate(lk.fom)}–${fmtDate(lk.tom)})` : "";
+        h += `<td class="${cls}" data-k="${k}"${v ? ` style="${lagStyle(v.lag)}"` : lk ? ` style="${lagStyle(lk.lag)}"` : ""}${tip ? ` title="${esc(tip)}"` : ""}>`
+          + (v && (!above || above.lag !== v.lag || above.uker !== v.uker) ? `<span class="lab">${esc(v.lag)}</span>` : !v && lk ? `<span class="lab">${esc(lk.lag)}</span>` : "")
+          + (v?.uker ? `<span class="wk">${v.uker === "partall" ? "P" : "O"}</span>` : "") + `</td>`;
+      }
+      h += `</tr>`;
     }
-    h += `</tr>`;
   }
+  const wrap = $(".plwrap"), keep = wrap.scrollTop;
   $("#plGrid").innerHTML = h + `</tbody>`;
+  wrap.scrollTop = keep;
   // oppsummering
   const desired = renderPlanState();
-  const clashes = [];
-  for (const t of desired) { const hits = collisions(t, null).filter(x => x.it.type !== "trening" && x.it.type !== "foresp"); if (hits.length) clashes.push([t, hits]); }
   const perLag = {}; for (const t of desired) perLag[t.lag] = (perLag[t.lag] || 0) + 1;
   $("#plSum").innerHTML = `<h3>Oppsummering for ${esc(lbl(P.key))}</h3>
     <div>${desired.length} faste treninger per uke for ${Object.keys(perLag).length} lag.${Object.keys(perLag).length ? " " + Object.entries(perLag).sort().map(([l, n]) => `<span class="chip" style="${lagStyle(l)};padding-right:10px">${esc(l)} · ${n}</span>`).join(" ") : ""}</div>
-    ${clashes.length ? `<div><span class="warn">Kamp går foran. Disse treningene faller bort på kampdagene:</span><ul>${clashes.slice(0, 30).map(([t, hits]) => `<li>${esc(t.lag)}, ${DAGER[t.ukedag - 1]} ${t.fra}–${t.til} (${esc(delLabel(anlegg(t.anleggId), t.delbaneId))}): ${hits.length === 1 ? "1 gang" : hits.length + " ganger"}, f.eks. ${hits.slice(0, 3).map(x => `${fmtDate(x.date)} ${esc(x.it.label)}`).join("; ")}</li>`).join("")}</ul></div>` : desired.length ? `<div class="ok">Ingen kollisjoner med kamper i perioden.</div>` : ""}`;
+    ${Object.keys(P.cells).some(k => P.hidden.has(k.split("|").slice(0, 2).join("|"))) ? `<div class="note">Noen av lagene i planen ligger på baner som er skjult i visningen. De blir med når planen lagres.</div>` : ""}`;
 }
 function paintCell(td) {
   const k = td.dataset.k; if (!k || td.classList.contains("off")) return;
@@ -2022,7 +2021,15 @@ function initPlan() {
     } catch (err) { $("#plReport").innerHTML = `<span class="err">${esc(err.message)}</span>`; }
     e.target.value = "";
   };
-  $("#plDays").addEventListener("click", e => { const b = e.target.closest("[data-day]"); if (b) { P.day = +b.dataset.day; renderPlan(); } });
+  $("#plDays").addEventListener("click", e => {
+    const b = e.target.closest("[data-day]"); if (!b) return; const row = $("#pl-day-" + b.dataset.day), wrap = $(".plwrap"); if (!row) return;
+    wrap.scrollTop = row.offsetTop - $("#plGrid thead").offsetHeight;
+  });
+  $("#plBaner").addEventListener("change", e => {
+    const k = e.target.dataset.bv; if (!k) return; e.target.checked ? P.hidden.delete(k) : P.hidden.add(k);
+    try { localStorage.setItem("banedagbok:plbaner", JSON.stringify([...P.hidden])); } catch (er) {}
+    renderPlan();
+  });
   $("#pl-from").parentElement.parentElement.addEventListener("change", e => {
     if (e.target.id === "pl-from") P.from = +e.target.value; if (e.target.id === "pl-to") P.to = +e.target.value;
     if (P.to <= P.from) P.to = P.from + 60; renderPlan();
