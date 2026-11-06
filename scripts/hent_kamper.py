@@ -189,20 +189,37 @@ def kamp_id(k: dict) -> str:
     return "k-" + re.sub(r"[^a-zA-Z0-9_.~:@+-]", "", base)[:120]
 
 
+def normaliser_anlegg(a: dict) -> dict:
+    """Samme regel som nettsiden: eldre oppsett uten `baner` blir én bane med alle deler aktive."""
+    a.setdefault("delbaner", [])
+    if not a.get("baner"):
+        a["baner"] = [{"id": "b-1", "navn": "Kunstgress" if a.get("fiksId") else "Hovedbane", "underlag": "kunstgress",
+                       "storrelse": "11", "kobling": "fotball.no" if a.get("fiksId") else "fri"}]
+    for d in a["delbaner"]:
+        d.setdefault("baneId", a["baner"][0]["id"])
+        d.setdefault("aktiv", True)
+        d.setdefault("alias", [])
+    return a
+
+
 def finn_delbane(cfg: dict, anlegg: dict, banenavn: str) -> tuple[dict, dict, bool]:
-    """Returnerer (anlegg, delbane, oppsett_endret). Søker i alle anlegg, oppretter i `anlegg` ved behov."""
+    """Returnerer (anlegg, delbane, oppsett_endret). Søker etter koblingen i alle anlegg.
+    Ukjente baner kobles til riktig del av anleggets første bane som er knyttet til fotball.no,
+    eller til hele den banen hvis delen ikke finnes (slått av)."""
     n = banenavn.strip().lower()
     for a in cfg["anlegg"]:
         for d in a.get("delbaner", []):
             if any(x.strip().lower() == n for x in d.get("alias", [])):
                 return a, d, False
+    normaliser_anlegg(anlegg)
+    bane = next((b for b in anlegg["baner"] if b.get("kobling") == "fotball.no"), anlegg["baner"][0])
     g = gjett_delbane(banenavn)
-    dels = anlegg.setdefault("delbaner", [])
-    d = next((x for x in dels if x["start"] == g["start"] and x["bredde"] == g["bredde"]), None)
+    deler = [x for x in anlegg["delbaner"] if x["baneId"] == bane["id"]]
+    d = next((x for x in deler if x["start"] == g["start"] and x["bredde"] == g["bredde"] and x.get("aktiv", True)), None) \
+        or next((x for x in deler if x["bredde"] == 12), None)
     if d is None:
-        d = {"id": ny_id("d"), "navn": banenavn, "start": g["start"], "bredde": g["bredde"], "alias": []}
-        dels.append(d)
-        dels.sort(key=lambda x: (-x["bredde"], x["start"]))
+        d = {"id": ny_id("d"), "baneId": bane["id"], "navn": "Hele banen", "start": 0, "bredde": 12, "alias": [], "aktiv": True}
+        anlegg["delbaner"].append(d)
     d["alias"] = sorted(set(d.get("alias", [])) | {banenavn})
     return anlegg, d, True
 
@@ -282,7 +299,7 @@ def main() -> int:
     cfg_endret = json.dumps(cfg, sort_keys=True) != original_cfg
     nye = sum(1 for e in endringer if e["id"] not in eksisterende)
     print(f"Resultat: {nye} nye, {len(endringer) - nye} endret, {len(slett)} fjernet, "
-          f"{len(hentet) - len(endringer)} uendret{', nye delbaner lagt til i oppsettet' if cfg_endret else ''}")
+          f"{len(hentet) - len(endringer)} uendret{', nye baner fra fotball.no koblet i oppsettet' if cfg_endret else ''}")
     for kid in slett:
         k = eksisterende[kid]
         print(f"  fjernes: {k.get('dato')} {k.get('tid')} {k.get('hjemmelag')} – {k.get('bortelag')}")

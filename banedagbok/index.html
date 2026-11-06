@@ -127,6 +127,18 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .pitch text { font: 600 9px var(--f-body); fill: var(--pitch); text-anchor: middle; dominant-baseline: middle; pointer-events: none }
 .pitch rect.q.on + text { fill: var(--pitch-ink) }
 .pitch.pick rect.q { cursor: pointer }
+.pitch rect.q.off { fill: transparent; stroke-dasharray: 2 2; opacity: .55 }
+.pitch.pick rect.q.off { cursor: not-allowed }
+@media (min-width: 980px) { .cols.oppsett { grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr) } }
+.banecard { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 12px; background: var(--surface) }
+.banecard .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.banecard .head input[data-bf="navn"] { font: 700 18px var(--f-display); min-width: 0; flex: 1 1 160px }
+.banecard .body { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start }
+.banecard table { width: auto; min-width: 0 }
+.banecard td { padding: 4px 8px; vertical-align: middle }
+.banecard tr.off td:not(:first-child) { opacity: .45 }
+.tag { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 4px; background: var(--pitch-soft); color: var(--pitch); font-weight: 600 }
+.tag.fri { background: var(--train-soft); color: var(--train) }
 .pitch.pick rect.q:hover { fill: var(--chalk) }
 .pitch.pick rect.q.on:hover { fill: var(--pitch) }
 .picker { display: grid; gap: 8px; justify-items: start }
@@ -134,7 +146,7 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .seg button { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 4px 9px; font-size: 13px; font-weight: 600; color: var(--muted) }
 .seg button[aria-pressed="true"] { background: var(--pitch); border-color: var(--pitch); color: var(--pitch-ink) }
 .lanes { display: grid; grid-template-columns: repeat(4, 1fr); font: 500 10px var(--f-mono); color: var(--muted); text-align: center; margin-top: 2px }
-.lanes span:nth-child(2) { border-right: 1px solid var(--pitch) }
+.lanes span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .kvwrap { display: flex; gap: 10px; align-items: center }
 .zonemap { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; height: 22px; width: 132px; padding: 2px; border: 1px solid var(--pitch); border-radius: 3px; background: var(--pitch-soft) }
 .zonemap i { background: var(--pitch); border-radius: 1px }
@@ -381,7 +393,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
 
   <!-- OPPSETT -->
   <section id="v-oppsett" hidden>
-    <div class="cols">
+    <div class="cols oppsett">
       <div class="panel" style="display:grid;gap:12px">
         <h2>Klubb og anlegg</h2>
         <form class="form" id="cf">
@@ -399,12 +411,17 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <p class="note">Minutter fra avspark som banen regnes som opptatt, inkludert oppvarming og bytte. Gjelder kamper uten egen varighet.</p>
       </div>
       <div class="panel" style="display:grid;gap:12px;min-width:0">
-        <div class="bar"><h2>Delbaner</h2><span class="spacer"></span><select id="oA" aria-label="Anlegg"></select><button class="btn danger rw" id="oDelA">Slett anlegg</button></div>
-        <p class="note">Banen er delt i fire kvarter. En 9er-kamp bruker en halvdel (to kvarter), en 7er- eller 5er-kamp bruker ett kvarter. To aktiviteter kolliderer når de bruker samme kvarter samtidig. Navnene kan endres.</p>
-        <div class="tablewrap"><table><thead><tr><th>Plass</th><th>Navn</th><th>Kamper fra fotball.no</th></tr></thead><tbody id="dList"></tbody></table></div>
-        <h3>Baner fra fotball.no</h3>
-        <p class="note">Hvilket kvarter eller hvilken halvdel hver bane på fotball.no ligger på. Endrer du en kobling, flyttes kampene på den banen med en gang.</p>
+        <div class="bar"><h2>Baner på anlegget</h2><span class="spacer"></span><select id="oA" aria-label="Anlegg"></select><button class="btn rw" id="oAddB">+ Ny bane</button><button class="btn danger rw" id="oDelA">Slett anlegg</button></div>
+        <form class="form" id="aEdit" onsubmit="return false">
+          <label>Navn på anlegget<input type="text" id="aEdit-navn" class="rw"></label>
+          <label>Anleggs-ID på fotball.no<input type="text" id="aEdit-fiks" class="rw" inputmode="numeric" placeholder="tom = ingen kamper hentes"></label>
+        </form>
+        <p class="note">Hver fysisk bane kan deles i halvdeler og kvarter. Kryss av for delene som faktisk finnes, for eksempel ut fra hvor mange mål dere har. Bare disse kan velges for treninger og bookinger. To aktiviteter kolliderer når de bruker samme del av samme bane samtidig. En bane er enten <b>knyttet til fotball.no</b>, og får kamper derfra, eller <b>frittstående</b>, for eksempel en treningsbane.</p>
+        <div id="baneCards" style="display:grid;gap:12px"></div>
+        <h3>Koblinger til fotball.no</h3>
+        <p class="note">Hvilken del av hvilken bane hver bane på fotball.no tilsvarer. Endrer du en kobling, flyttes kampene på den banen med en gang.</p>
         <div class="tablewrap"><table><thead><tr><th>Bane på fotball.no</th><th>Kamper</th><th>Ligger på</th></tr></thead><tbody id="mList"></tbody></table></div>
+        <form class="bar" id="mAdd"><input type="text" id="mAdd-navn" placeholder="Navn på fotball.no, f.eks. Høland stadion kg 7er B" aria-label="Navn på fotball.no" style="flex:1;min-width:200px"><select id="mAdd-del" aria-label="Ligger på"></select><button class="btn rw" type="submit">Koble</button></form>
       </div>
     </div>
   </section>
@@ -448,15 +465,15 @@ const DAY_START = 8 * 60, DAY_END = 23 * 60;
 const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7": 75, "5": 60, "3": 45 } };
 
 // ---------- state ----------
-const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, anleggId: null, week: monday(new Date()),
+const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, anleggId: null, baneId: null, week: monday(new Date()),
   view: "uke", day: null, ro: true, backend: null, loaded: false, editTrain: null,
   me: null,          // innlogget bruker: {epost, navn, rolle, lag}
   user: null,        // Supabase-innlogging
   canWrite: true,    // Claude-artefakt: false for de som bare kan lese
   viewAs: "eier" };  // testmodus: hvem siden vises som
-try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.viewAs) S.viewAs = u.viewAs; } } catch (e) {}
+try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; } } catch (e) {}
 let SB = null; // Supabase-klient når siden er koblet til Supabase
-const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, viewAs: S.viewAs })); } catch (e) {} };
+const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs })); } catch (e) {} };
 const COLS = ["treninger", "kamper", "foresporsler", "brukere"];
 
 // ---------- roller ----------
@@ -582,10 +599,11 @@ function errText(e) {
 }
 
 function onData(d) {
-  if ("cfg" in d) { S.cfg = Object.assign(clone(DEFAULT_CFG), d.cfg || {}); cfgMuts.forEach(m => m(S.cfg)); }
+  if ("cfg" in d) { S.cfg = Object.assign(clone(DEFAULT_CFG), clone(d.cfg || {})); S.cfg.anlegg.forEach(normalizeAnlegg); cfgMuts.forEach(m => m(S.cfg)); }
   for (const c of COLS) if (d[c]) S[c] = d[c];
   S.loaded = true;
   if (!S.cfg.anlegg.find(a => a.id === S.anleggId)) S.anleggId = S.cfg.anlegg[0]?.id || null;
+  if (!curA()?.baner.find(b => b.id === S.baneId)) S.baneId = curA()?.baner[0]?.id || null;
   renderAll();
 }
 
@@ -594,7 +612,7 @@ const anlegg = id => S.cfg.anlegg.find(a => a.id === id);
 const curA = () => anlegg(S.anleggId);
 const delbane = (a, id) => a?.delbaner.find(d => d.id === id)
   // eldre data: egne 5er-delbaner (d-5a … d-5f) ligger nå i kvarteret sitt, to per kvarter
-  || (/^d-5([a-h])$/.exec(id || "") ? delbaneByZone(a, { start: Math.min(3, Math.floor((id.charCodeAt(3) - 97) / 2)) * 3, bredde: 3 }) : undefined);
+  || (/^d-5([a-h])$/.exec(id || "") ? delbaneByZone(a, { start: Math.min(3, Math.floor((id.charCodeAt(3) - 97) / 2)) * 3, bredde: 3 }, a?.baner?.[0]?.id) : undefined);
 function findDelbaneByName(name) {
   const n = String(name || "").trim().toLowerCase();
   for (const a of S.cfg.anlegg) for (const d of a.delbaner) {
@@ -620,23 +638,63 @@ function standardDelbaner() {
   return [mk("d-hele", "Hele banen", 0, 12), mk("d-9a", "9er A", 0, 6), mk("d-9b", "9er B", 6, 6),
     ..."ABCD".split("").map((l, i) => mk("d-7" + l.toLowerCase(), "7er " + l, i * 3, 3))];
 }
-const delbaneByZone = (a, z) => a?.delbaner.find(d => d.start === z.start && d.bredde === z.bredde);
-const quarters = a => (a?.delbaner || []).filter(d => d.bredde === 3).sort((x, y) => x.start - y.start);
+// ---------- baner på et anlegg ----------
+// anlegg.baner: [{id, navn, underlag, storrelse, kobling: "fotball.no" | "fri"}]
+// anlegg.delbaner: [{id, baneId, navn, start, bredde, alias, aktiv}] – hel (0/12), halvdeler (0,6/6), kvarter (0,3,6,9/3)
+const UNDERLAG = { kunstgress: "Kunstgress", gress: "Gress", grus: "Grus", innendors: "Innendørs" };
+const STORRELSE = { "11": "11er", "9": "9er", "7": "7er", "5": "5er" };
+function partNames(storrelse) {
+  return storrelse === "11" ? ["Hele banen", "9er A", "9er B", "7er A", "7er B", "7er C", "7er D"]
+    : ["Hele banen", "Halvdel A", "Halvdel B", "Kvart A", "Kvart B", "Kvart C", "Kvart D"];
+}
+function newBaneParts(bId, storrelse, ids) {
+  const n = partNames(storrelse), z = [[0, 12], [0, 6], [6, 6], [0, 3], [3, 3], [6, 3], [9, 3]];
+  const id = ids || ["hel", "ha", "hb", "qa", "qb", "qc", "qd"].map(x => `${bId}-${x}`);
+  return z.map(([start, bredde], i) => ({ id: id[i], baneId: bId, navn: n[i], start, bredde, alias: [], aktiv: storrelse === "11" || i === 0 }));
+}
+function normalizeAnlegg(a) {
+  a.delbaner ||= [];
+  if (!Array.isArray(a.baner) || !a.baner.length) {
+    a.baner = [{ id: "b-1", navn: a.fiksId ? "Kunstgress" : "Hovedbane", underlag: "kunstgress", storrelse: "11", kobling: a.fiksId ? "fotball.no" : "fri" }];
+    if (!a.delbaner.length) a.delbaner = newBaneParts("b-1", "11", ["d-hele", "d-9a", "d-9b", "d-7a", "d-7b", "d-7c", "d-7d"]);
+  }
+  for (const d of a.delbaner) { d.baneId ||= a.baner[0].id; if (d.aktiv === undefined) d.aktiv = true; d.alias ||= []; }
+  return a;
+}
+const baneById = (a, bId) => a?.baner.find(b => b.id === bId);
+const baneOf = (a, delId) => baneById(a, delbane(a, delId)?.baneId) || a?.baner[0];
+const curBane = () => baneById(curA(), S.baneId) || curA()?.baner[0];
+const partsOf = (a, bId, all) => (a?.delbaner || []).filter(d => d.baneId === bId && (all || d.aktiv !== false));
+const multiBane = a => (a?.baner?.length || 0) > 1;
+const delLabel = (a, id) => { const d = delbane(a, id); if (!d) return "?"; return multiBane(a) ? `${baneOf(a, id).navn} · ${d.navn}` : d.navn; };
+const linkedBane = a => a?.baner.find(b => b.kobling === "fotball.no") || a?.baner[0];
+const defaultPart = (a, bId) => { const ps = partsOf(a, bId || a?.baner[0]?.id); return (ps.find(d => d.bredde === 12) || ps[0])?.id; };
+// Del med denne plasseringen på en bane (standard: første bane knyttet til fotball.no)
+const delbaneByZone = (a, z, bId) => (a?.delbaner || []).find(d => d.baneId === (bId || linkedBane(a)?.id) && d.start === z.start && d.bredde === z.bredde);
+// Hvor en fotball.no-bane som ikke er koblet ennå, havner: riktig del av den knyttede banen hvis den er aktiv, ellers hele banen
+function guessPart(a, name) {
+  const b = linkedBane(a); if (!b) return null;
+  const d = delbaneByZone(a, guessDelbane(name), b.id);
+  return d && d.aktiv !== false ? d : delbaneByZone(a, { start: 0, bredde: 12 }, b.id);
+}
+const quarters = (a, bId) => partsOf(a, bId || a?.baner[0]?.id).filter(d => d.bredde === 3).sort((x, y) => x.start - y.start);
 // Liten tegning av banen sett ovenfra. zs/ze i tolvdeler. Kvarter 1–2 = venstre halvdel, 3–4 = høyre.
 function pitchSvg(zs, ze, opts = {}) {
   const w = opts.w || 56, h = Math.round(w * 0.62), pad = 1.5, hw = (w - 2 * pad) / 2, hh = (h - 2 * pad) / 2;
-  const a = opts.anlegg, qn = quarters(a);
+  const a = opts.anlegg, bId = opts.bane || a?.baner?.[0]?.id, qn = partsOf(a, bId, true).filter(d => d.bredde === 3).sort((x, y) => x.start - y.start);
+  const avail = opts.avail;
   const cells = [[0, pad, pad], [1, pad, pad + hh], [2, pad + hw, pad], [3, pad + hw, pad + hh]];
   let out = `<svg class="pitch${opts.pick ? " pick" : ""}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(opts.label || "Banetegning")}">`;
   for (const [q, x, y] of cells) {
     const on = q * 3 >= zs && q * 3 + 3 <= ze;
-    out += `<rect class="q${on ? " on" : ""}" data-q="${q}" x="${x}" y="${y}" width="${hw}" height="${hh}"></rect>`;
-    if (opts.labels) out += `<text x="${x + hw / 2}" y="${y + hh / 2}">${esc((qn[q]?.navn || "").replace(/^7er\s*/i, ""))}</text>`;
+    const off = avail && !avail.has(q) && !on;
+    out += `<rect class="q${on ? " on" : ""}${off ? " off" : ""}" data-q="${q}" x="${x}" y="${y}" width="${hw}" height="${hh}"></rect>`;
+    if (opts.labels) out += `<text x="${x + hw / 2}" y="${y + hh / 2}">${esc((qn[q]?.navn || "").replace(/^(7er|Kvart)\s*/i, ""))}</text>`;
   }
   out += `<line class="ln" x1="${w / 2}" y1="${pad}" x2="${w / 2}" y2="${h - pad}"></line><circle class="ln" cx="${w / 2}" cy="${h / 2}" r="${h / 7}"></circle></svg>`;
   return out;
 }
-function pitchFor(a, delId, w) { const [zs, ze] = zoneOf(a, delId); return pitchSvg(zs, ze, { w, anlegg: a, label: delbane(a, delId)?.navn }); }
+function pitchFor(a, delId, w) { const [zs, ze] = zoneOf(a, delId); return pitchSvg(zs, ze, { w, anlegg: a, bane: baneOf(a, delId)?.id, label: delLabel(a, delId) }); }
 function spillformKey(sf) { const m = /(\d{1,2})\s*mot/i.exec(sf || ""); return m ? m[1] : null; }
 function kampVarighet(k) {
   if (k.varighet) return +k.varighet;
@@ -644,11 +702,12 @@ function kampVarighet(k) {
   return +(S.cfg.varighet[key] || S.cfg.varighet["11"] || 120);
 }
 
-function occurrences(weekStart, aId) {
+function occurrences(weekStart, aId, bId) {
   const out = [];
   const days = [...Array(7)].map((_, i) => ymd(addDays(weekStart, i)));
+  const A = anlegg(aId), onBane = del => !bId || (delbane(A, del)?.baneId || A?.baner[0]?.id) === bId;
   for (const [id, t] of Object.entries(S.treninger)) {
-    if (t.anleggId !== aId) continue;
+    if (t.anleggId !== aId || !onBane(t.delbaneId)) continue;
     const i = (+t.ukedag) - 1; const date = days[i];
     if (!date || date < t.fom || date > t.tom) continue;
     const s = toMin(t.fra), e = toMin(t.til); if (s == null || e == null) continue;
@@ -656,7 +715,7 @@ function occurrences(weekStart, aId) {
       label: t.lag, sub: showMerknad() ? (t.merknad || "") : "", src: t });
   }
   for (const [id, k] of Object.entries(S.kamper)) {
-    if (k.anleggId !== aId || !days.includes(k.dato)) continue;
+    if (k.anleggId !== aId || !days.includes(k.dato) || !onBane(k.delbaneId)) continue;
     const s = toMin(k.tid); if (s == null) continue;
     const manual = k.kilde === "manuell";
     out.push({ type: manual ? "booking" : "kamp", id, date: k.dato, start: s, end: s + kampVarighet(k), del: k.delbaneId,
@@ -664,7 +723,7 @@ function occurrences(weekStart, aId) {
       sub: manual ? (showMerknad() ? (k.merknad || "") : "") : (k.turnering || ""), src: k });
   }
   for (const [id, r] of Object.entries(S.foresporsler)) {
-    if (r.status !== "ny" || r.anleggId !== aId || !S.me) continue;
+    if (r.status !== "ny" || r.anleggId !== aId || !S.me || !onBane(r.delbaneId)) continue;
     if (!isAdmin() && r.epost !== S.me.epost) continue;
     for (const c of requestDates(r)) {
       if (!days.includes(c.date)) continue;
@@ -690,7 +749,7 @@ function collisions(r, skipId) {
   const [zs, ze] = zoneOf(a, r.delbaneId); const hits = []; const cache = {};
   for (const c of requestDates(r)) {
     const wk = ymd(monday(parseYmd(c.date)));
-    const items = cache[wk] ||= occurrences(parseYmd(wk), a.id);
+    const items = cache[wk] ||= occurrences(parseYmd(wk), a.id, baneOf(a, r.delbaneId)?.id);
     for (const it of items) {
       if (it.type === "foresp" || it.avlyst || it.id === skipId || it.date !== c.date) continue;
       if (it.start >= c.end || c.start >= it.end) continue;
@@ -703,7 +762,7 @@ function collisions(r, skipId) {
 function collisionHtml(hits, okText) {
   if (!hits.length) return `<span class="ok">${okText || "Ingen kollisjoner med kamper, treninger eller bookinger."}</span>`;
   const dates = [...new Set(hits.map(h => h.date))];
-  const list = hits.slice(0, 4).map(h => `${fmtDate(h.date)} ${fromMin(h.it.start)}–${fromMin(h.it.end)} ${esc(h.it.label)}`).join("; ");
+  const list = hits.slice(0, 4).map(h => `${fmtDate(h.date)} ${fromMin(h.it.start)}–${fromMin(h.it.end)} ${esc(h.it.label)} (${esc(delbane(anlegg(h.it.src.anleggId), h.it.del)?.navn || "?")})`).join("; ");
   return `<span class="err">Kolliderer ${dates.length === 1 ? "én dag" : dates.length + " dager"}:</span> ${list}${hits.length > 4 ? " …" : ""}`;
 }
 function markConflicts(items, a) {
@@ -739,10 +798,21 @@ function anleggOptions(sel, withAll) {
   if ([...sel.options].some(o => o.value === v)) sel.value = v;
 }
 function delOptions(sel, a, selected) {
-  sel.innerHTML = (a?.delbaner || []).map(d => `<option value="${esc(d.id)}">${esc(d.navn)}</option>`).join("");
+  const keep = (a?.delbaner || []).find(d => d.id === selected && d.aktiv === false); // eldre valg på en del som er slått av
+  sel.innerHTML = (a?.baner || []).map(b => {
+    const o = [...partsOf(a, b.id), ...(keep && keep.baneId === b.id ? [keep] : [])].map(d => `<option value="${esc(d.id)}">${esc(d.navn)}</option>`).join("");
+    return multiBane(a) ? `<optgroup label="${esc(b.navn)}">${o}</optgroup>` : o;
+  }).join("");
   if (selected && [...sel.options].some(o => o.value === selected)) sel.value = selected;
   sel.dataset.anlegg = a?.id || "";
   renderPicker(sel);
+}
+function baneSelOptions() {
+  const sel = $("#anleggSel");
+  sel.innerHTML = S.cfg.anlegg.map(a => a.baner.length > 1
+    ? `<optgroup label="${esc(a.navn)}">${a.baner.map(b => `<option value="${esc(a.id + "|" + b.id)}">${esc(a.navn)} · ${esc(b.navn)}</option>`).join("")}</optgroup>`
+    : `<option value="${esc(a.id + "|" + a.baner[0].id)}">${esc(a.navn)}</option>`).join("");
+  if (S.anleggId && S.baneId) sel.value = S.anleggId + "|" + S.baneId;
 }
 // Velger for del av banen: klikk på et kvarter i tegningen, eller velg hele / halvdel / kvarter i knapperaden.
 function renderPicker(sel) {
@@ -751,13 +821,16 @@ function renderPicker(sel) {
     box = document.createElement("div"); box.className = "picker"; sel.after(box); sel.hidden = true;
     box.addEventListener("click", e => {
       const a = anlegg(sel.dataset.anlegg); if (!a) return;
-      const q = e.target.closest("[data-q]"), b = e.target.closest("[data-did]");
+      const q = e.target.closest("[data-q]"), b = e.target.closest("[data-did]"), bb = e.target.closest("[data-bid]");
+      const bId = baneOf(a, sel.value)?.id;
+      const act = d => d && d.aktiv !== false ? d : null;
       let d = null;
-      if (b) d = delbane(a, b.dataset.did);
+      if (bb) d = delbane(a, defaultPart(a, bb.dataset.bid));
+      else if (b) d = delbane(a, b.dataset.did);
       else if (q) {
         const cur = delbane(a, sel.value), qs = +q.dataset.q * 3;
-        // klikk på et kvarter i en valgt halvdel/hel bane → velg kvarteret; klikk igjen på valgt kvarter → halvdelen
-        d = cur && cur.bredde === 3 && cur.start === qs ? delbaneByZone(a, { start: qs < 6 ? 0 : 6, bredde: 6 }) : delbaneByZone(a, { start: qs, bredde: 3 });
+        // klikk på et kvarter → velg kvarteret; klikk igjen på valgt kvarter → halvdelen (hvis den finnes)
+        d = cur && cur.bredde === 3 && cur.start === qs ? act(delbaneByZone(a, { start: qs < 6 ? 0 : 6, bredde: 6 }, bId)) : act(delbaneByZone(a, { start: qs, bredde: 3 }, bId));
       }
       if (!d) return;
       e.preventDefault(); sel.value = d.id; renderPicker(sel);
@@ -766,17 +839,20 @@ function renderPicker(sel) {
   }
   const a = anlegg(sel.dataset.anlegg);
   if (!a) { box.innerHTML = `<span class="note">Velg anlegg først.</span>`; return; }
-  const [zs, ze] = zoneOf(a, sel.value);
-  box.innerHTML = `${pitchSvg(zs, ze, { w: 150, labels: true, pick: true, anlegg: a, label: "Klikk på et kvarter" })}
-    <div class="seg" role="group" aria-label="Del av banen">${a.delbaner.map(d => `<button type="button" data-did="${esc(d.id)}" aria-pressed="${d.id === sel.value}">${esc(d.navn)}</button>`).join("")}</div>`;
+  const [zs, ze] = zoneOf(a, sel.value); const bId = baneOf(a, sel.value)?.id;
+  const avail = new Set(quarters(a, bId).map(d => d.start / 3));
+  box.innerHTML = `${multiBane(a) ? `<div class="seg" role="group" aria-label="Bane">${a.baner.map(b => `<button type="button" data-bid="${esc(b.id)}" aria-pressed="${b.id === bId}">${esc(b.navn)}</button>`).join("")}</div>` : ""}
+    ${pitchSvg(zs, ze, { w: 150, labels: true, pick: true, anlegg: a, bane: bId, avail, label: "Klikk på et kvarter" })}
+    <div class="seg" role="group" aria-label="Del av banen">${partsOf(a, bId).map(d => `<button type="button" data-did="${esc(d.id)}" aria-pressed="${d.id === sel.value}">${esc(d.navn)}</button>`).join("")}</div>`;
 }
 function renderAll() {
   const a = curA();
   $("#clubName").textContent = S.cfg.klubb ? S.cfg.klubb + " · Banedagbok" : "Banedagbok";
-  $("#anleggTitle").textContent = a ? a.navn : "Banedagbok";
-  for (const id of ["#anleggSel", "#tf-anlegg", "#dl-anlegg", "#oA"]) anleggOptions($(id));
+  $("#anleggTitle").textContent = a ? a.navn + (multiBane(a) ? " · " + (curBane()?.navn || "") : "") : "Banedagbok";
+  baneSelOptions();
+  for (const id of ["#tf-anlegg", "#dl-anlegg", "#oA"]) anleggOptions($(id));
   anleggOptions($("#tlFilter"), true); anleggOptions($("#kFilterA"), true);
-  if (a) { $("#anleggSel").value = a.id; if (!$("#oA").value) $("#oA").value = a.id; if (!$("#dl-anlegg").value) $("#dl-anlegg").value = a.id; }
+  if (a) { if (!$("#oA").value) $("#oA").value = a.id; if (!$("#dl-anlegg").value) $("#dl-anlegg").value = a.id; }
   if (!S.editTrain) { if (a && !$("#tf-anlegg").value) $("#tf-anlegg").value = a.id; }
   delOptions($("#tf-del"), anlegg($("#tf-anlegg").value), $("#tf-del").value);
   computeMe();
@@ -831,7 +907,8 @@ function renderWeek() {
     grid.innerHTML = `<div class="empty-week" style="grid-column:1/-1">${S.loaded ? "Ingen anlegg ennå. Legg til anlegget under <b>Baner</b>, så kan du hente kamper fra fotball.no og legge inn treningstider." : "Henter data …"}</div>`;
     alerts.innerHTML = ""; return;
   }
-  const items = occurrences(ws, a.id);
+  const bane = curBane();
+  const items = occurrences(ws, a.id, bane?.id);
   const pairs = markConflicts(items, a);
   const H = (DAY_END - DAY_START) / 60; const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   const today = ymd(new Date());
@@ -840,7 +917,7 @@ function renderWeek() {
   let html = `<div class="corner"></div>`;
   for (const i of idx) { const d = addDays(ws, i); const ds = ymd(d);
     html += `<div class="dayhead${ds === today ? " today" : ""}"><button data-dayidx="${i}" title="${S.day == null ? "Vis hele dagen" : "Tilbake til hele uka"}"><b>${DAGER[i]}</b> <span class="num muted">${d.getDate()}.${d.getMonth() + 1}</span>${S.day != null ? `<span class="muted">· ← hele uka</span>` : ""}</button>
-      <div class="lanes" aria-hidden="true">${quarters(a).map(q => `<span>${esc(S.day != null ? q.navn : q.navn.replace(/^7er\s*/i, ""))}</span>`).join("")}</div></div>`; }
+      <div class="lanes" aria-hidden="true">${laneLabels(a, bane?.id)}</div></div>`; }
   html += `<div class="times" style="height:${H * hpx}px">${[...Array(H + 1)].map((_, h) => h === 0 ? "" : `<span style="top:${h * hpx}px">${pad(8 + h)}</span>`).join("")}</div>`;
   for (const i of idx) {
     const ds = ymd(addDays(ws, i));
@@ -861,23 +938,35 @@ function renderWeek() {
   alerts.innerHTML = pairs.length ? pairs.map(([x, y]) => {
     const dx = delbane(a, x.del), dy = delbane(a, y.del);
     return `<div class="alert"><b>Kollisjon ${fmtDate(x.date)}:</b> ${esc(x.label)} (${fromMin(x.start)}–${fromMin(x.end)}, ${esc(dx?.navn || "?")}) og ${esc(y.label)} (${fromMin(y.start)}–${fromMin(y.end)}, ${esc(dy?.navn || "?")}) bruker samme del av banen.</div>`;
-  }).join("") : (items.length ? "" : `<div class="note">Ingen kamper eller treninger på ${esc(a.navn)} denne uka.</div>`);
+  }).join("") : (items.length ? "" : `<div class="note">Ingen kamper eller treninger på ${esc(a.navn)}${multiBane(a) ? " · " + esc(bane?.navn || "") : ""} denne uka.</div>`);
   // scroll to first item
   const first = items.length ? Math.min(...items.map(x => x.start)) : 16 * 60;
   const gw = $(".gridwrap"); if (gw.scrollHeight > gw.clientHeight) gw.scrollTop = Math.max(0, (first - DAY_START) / 60 * hpx - 20);
 }
 
-function weekActivity(aId, year) {
+// Etiketter over dagkolonnene: kvarterene som finnes, ellers halvdelene
+function baneUsage(a) {
+  const u = {};
+  for (const x of [...Object.values(S.treninger), ...Object.values(S.kamper).filter(k => k.kilde === "manuell")]) {
+    if (x.anleggId !== a.id) continue; const b = baneOf(a, x.delbaneId)?.id; if (b) u[b] = (u[b] || 0) + 1;
+  }
+  return u;
+}
+function laneLabels(a, bId) {
+  let ps = quarters(a, bId); if (!ps.length) ps = partsOf(a, bId).filter(d => d.bredde === 6);
+  return ps.map(d => `<span style="grid-column:${d.start / 3 + 1} / span ${d.bredde / 3}">${esc(S.day != null ? d.navn : d.navn.replace(/^(7er|9er|Kvart|Halvdel)\s*/i, ""))}</span>`).join("");
+}
+function weekActivity(aId, year, bId) {
   // returns Map weekStartYmd -> {k, t}
   const res = new Map();
   let ws = monday(new Date(year, 0, 4)); const end = new Date(year, 11, 31);
   while (ws <= end) { res.set(ymd(ws), { k: 0, t: 0, b: 0 }); ws = addDays(ws, 7); }
   for (const k of Object.values(S.kamper)) {
-    if (k.anleggId !== aId) continue; const key = ymd(monday(parseYmd(k.dato)));
+    if (k.anleggId !== aId || (bId && baneOf(anlegg(aId), k.delbaneId)?.id !== bId)) continue; const key = ymd(monday(parseYmd(k.dato)));
     const r = res.get(key); if (r) k.kilde === "manuell" ? r.b++ : r.k++;
   }
   for (const t of Object.values(S.treninger)) {
-    if (t.anleggId !== aId) continue;
+    if (t.anleggId !== aId || (bId && baneOf(anlegg(aId), t.delbaneId)?.id !== bId)) continue;
     for (const [key, r] of res) { const date = ymd(addDays(parseYmd(key), (+t.ukedag) - 1)); if (date >= t.fom && date <= t.tom && !(t.avlyst || []).includes(date)) r.t++; }
   }
   return res;
@@ -886,7 +975,7 @@ function renderSeason() {
   const a = curA(); const strip = $("#strip"), axis = $("#stripAxis");
   const year = S.week.getFullYear(); $("#seasonYear").textContent = year;
   if (!a) { strip.innerHTML = ""; axis.innerHTML = ""; return; }
-  const act = weekActivity(a.id, year);
+  const act = weekActivity(a.id, year, curBane()?.id);
   const max = Math.max(4, ...[...act.values()].map(r => r.k + r.t + r.b));
   const cur = ymd(S.week), now = ymd(monday(new Date()));
   strip.innerHTML = [...act].map(([key, r]) => {
@@ -903,7 +992,7 @@ function renderTrainList() {
     .sort(([, x], [, y]) => (x.ukedag - y.ukedag) || (toMin(x.fra) - toMin(y.fra)));
   $("#tList").innerHTML = rows.length ? rows.map(([id, t]) => { const a = anlegg(t.anleggId); const d = delbane(a, t.delbaneId);
     return `<tr class="click" data-tid="${esc(id)}"><td>${DAGER[t.ukedag - 1]}</td><td class="num">${esc(t.fra)}–${esc(t.til)}</td><td><b>${esc(t.lag)}</b>${t.merknad && showMerknad() ? `<br><span class="muted">${esc(t.merknad)}</span>` : ""}</td>
-      <td>${esc(d?.navn || "?")}<br><span class="muted">${esc(a?.navn || "")}</span></td><td class="num">${fmtDate(t.fom)} – ${fmtDate(t.tom)}${(t.avlyst || []).length ? `<br><span class="muted">${t.avlyst.length} avlyst</span>` : ""}</td></tr>`; }).join("")
+      <td>${esc(delLabel(a, t.delbaneId))}<br><span class="muted">${esc(a?.navn || "")}</span></td><td class="num">${fmtDate(t.fom)} – ${fmtDate(t.tom)}${(t.avlyst || []).length ? `<br><span class="muted">${t.avlyst.length} avlyst</span>` : ""}</td></tr>`; }).join("")
     : `<tr><td colspan="5" class="muted">${mine ? "Ingen faste treningstider for lagene dine ennå." : "Ingen faste treningstider ennå."}${canCreateTraining() ? " Fyll inn skjemaet for å legge inn den første." : canRequest() ? " Send en forespørsel for å få tid." : ""}</td></tr>`;
 }
 function renderKampList() {
@@ -911,7 +1000,7 @@ function renderKampList() {
   const rows = Object.entries(S.kamper).filter(([, k]) => (!fa || k.anleggId === fa) && (!ft || (k.kilde || "fotball.no") === ft) && (!fut || k.dato >= today))
     .sort(([, x], [, y]) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
   $("#kList").innerHTML = rows.length ? rows.slice(0, 600).map(([id, k]) => { const a = anlegg(k.anleggId); const d = delbane(a, k.delbaneId); const man = k.kilde === "manuell";
-    return `<tr class="click" data-kid="${esc(id)}"><td class="num">${fmtDate(k.dato)}</td><td class="num">${esc(k.tid)}</td><td>${esc(d?.navn || k.baneNavn || "?")}</td>
+    return `<tr class="click" data-kid="${esc(id)}"><td class="num">${fmtDate(k.dato)}</td><td class="num">${esc(k.tid)}</td><td>${esc(d ? delLabel(a, k.delbaneId) : k.baneNavn || "?")}</td>
       <td>${man ? esc(k.tittel || "Booking") : `${esc((k.hjemmelag || "").trim())} – ${esc((k.bortelag || "").trim())}`}${k.resultat && k.resultat.trim() !== "-" ? ` <span class="num muted">${esc(k.resultat)}</span>` : ""}</td>
       <td>${esc(man ? (showMerknad() ? k.merknad || "" : "") : (k.turnering || ""))}</td><td><span class="pill ${man ? "booking" : "kamp"}">${man ? "Booking" : esc(k.spillform || "Kamp")}</span></td></tr>`; }).join("")
     : `<tr><td colspan="6" class="muted">${fut ? "Ingen kommende kamper. Hent kampoversikten under «Hent fra fotball.no», eller fjern haken for «Bare kommende»." : "Ingen kamper ennå."}</td></tr>`;
@@ -933,19 +1022,42 @@ function renderOppsett() {
   if (document.activeElement !== $("#cf-klubb")) $("#cf-klubb").value = S.cfg.klubb || "";
   $("#vf").innerHTML = ["11", "9", "7", "5", "3"].map(k => `<label>${k}er (min)<input type="number" min="15" max="300" step="5" data-vk="${k}" id="vk-${k}" value="${esc(S.cfg.varighet[k] ?? "")}" class="rw"></label>`).join("");
   const a = anlegg($("#oA").value);
-  if (!a) { $("#dList").innerHTML = `<tr><td colspan="3" class="muted">Legg til et anlegg først.</td></tr>`; $("#mList").innerHTML = ""; return; }
-  $("#dList").innerHTML = a.delbaner.map(d => `<tr data-did="${esc(d.id)}">
-      <td>${pitchSvg(d.start, d.start + d.bredde, { w: 64, anlegg: a, label: d.navn })}</td>
-      <td><input type="text" value="${esc(d.navn)}" data-f="navn" id="dn-${esc(d.id)}" class="rw" aria-label="Navn" style="width:15ch"></td>
-      <td class="muted" style="font-size:13px">${(d.alias || []).map(esc).join("<br>") || "–"}</td></tr>`).join("");
-  // baner fra fotball.no for anlegget, med antall kamper og hvilken delbane de er koblet til
+  for (const [id, v] of [["#aEdit-navn", a?.navn], ["#aEdit-fiks", a?.fiksId]]) if (document.activeElement !== $(id)) $(id).value = v || "";
+  if (!a) { $("#baneCards").innerHTML = `<p class="note">Legg til et anlegg først.</p>`; $("#mList").innerHTML = ""; return; }
+  const usage = baneUsage(a);
+  $("#baneCards").innerHTML = a.baner.map(b => {
+    const parts = partsOf(a, b.id, true), act = partsOf(a, b.id), fri = b.kobling !== "fotball.no";
+    const qs = quarters(a, b.id), u = usage[b.id] || 0;
+    return `<div class="banecard" data-bid="${esc(b.id)}">
+      <div class="head"><input type="text" class="rw" data-bf="navn" id="bn-${esc(b.id)}" value="${esc(b.navn)}" aria-label="Navn på banen">
+        <select class="rw" data-bf="underlag" aria-label="Underlag">${Object.entries(UNDERLAG).map(([k, v]) => `<option value="${k}"${b.underlag === k ? " selected" : ""}>${v}</option>`).join("")}</select>
+        <select class="rw" data-bf="storrelse" aria-label="Størrelse">${Object.entries(STORRELSE).map(([k, v]) => `<option value="${k}"${b.storrelse === k ? " selected" : ""}>${v}-bane</option>`).join("")}</select>
+        <button type="button" class="btn danger rw" data-bdel="${esc(b.id)}">Slett bane</button></div>
+      <div class="seg" role="group" aria-label="Kobling"><button type="button" class="rw" data-kobling="fotball.no" aria-pressed="${!fri}">Knyttet til fotball.no</button><button type="button" class="rw" data-kobling="fri" aria-pressed="${fri}">Frittstående</button></div>
+      <div class="body">
+        ${pitchSvg(-1, -1, { w: 150, labels: true, anlegg: a, bane: b.id, avail: new Set(qs.map(d => d.start / 3)), label: b.navn + ": kvarter som finnes" })}
+        <table><tbody>${parts.map(d => `<tr class="${d.aktiv === false ? "off" : ""}" data-did="${esc(d.id)}">
+          <td><input type="checkbox" class="rw" data-pf="aktiv" aria-label="${esc(d.navn)} finnes"${d.aktiv !== false ? " checked" : ""}${d.bredde === 12 ? " disabled" : ""}></td>
+          <td>${pitchSvg(d.start, d.start + d.bredde, { w: 40, anlegg: a, bane: b.id })}</td>
+          <td><input type="text" class="rw" data-pf="navn" id="pn-${esc(d.id)}" value="${esc(d.navn)}" aria-label="Navn" style="width:13ch"></td>
+          <td class="muted" style="font-size:12px">${fri ? "" : (d.alias || []).map(esc).join("<br>")}</td></tr>`).join("")}</tbody></table>
+      </div>
+      <div class="meta">${act.length} av ${parts.length} deler finnes · ${fri ? `<span class="tag fri">Frittstående</span>` : `<span class="tag">fotball.no</span>`}${u ? ` · ${u} treninger og bookinger` : ""}</div>
+    </div>`;
+  }).join("");
+  // baner fra fotball.no for anlegget, med antall kamper og hvilken del de er koblet til
   const names = {};
   for (const k of Object.values(S.kamper)) if (k.anleggId === a.id && k.kilde !== "manuell" && k.baneNavn) names[k.baneNavn] = (names[k.baneNavn] || 0) + 1;
   for (const d of a.delbaner) for (const n of d.alias || []) names[n] ||= 0;
-  const opts = sel => a.delbaner.map(d => `<option value="${esc(d.id)}"${d.id === sel ? " selected" : ""}>${esc(d.navn)}</option>`).join("");
+  const linked = a.baner.filter(b => b.kobling === "fotball.no");
+  const opts = sel => linked.map(b => { const o = partsOf(a, b.id).map(d => `<option value="${esc(d.id)}"${d.id === sel ? " selected" : ""}>${esc(d.navn)}</option>`).join("");
+    return linked.length > 1 ? `<optgroup label="${esc(b.navn)}">${o}</optgroup>` : o; }).join("");
+  $("#mAdd-del").innerHTML = opts(null);
+  $("#mAdd").hidden = !linked.length;
   const rows = Object.entries(names).sort(([x], [y]) => x.localeCompare(y, "nb"));
-  $("#mList").innerHTML = rows.length ? rows.map(([n, c]) => { const cur = a.delbaner.find(d => (d.alias || []).includes(n));
-    return `<tr data-bane="${esc(n)}"><td>${esc(n)}</td><td class="num">${c}</td><td><div class="kvwrap">${cur ? pitchSvg(cur.start, cur.start + cur.bredde, { w: 44, anlegg: a }) : ""}<select class="rw" aria-label="Ligger på">${cur ? "" : `<option value="">Ikke koblet</option>`}${opts(cur?.id)}</select></div></td></tr>`; }).join("")
+  $("#mList").innerHTML = !linked.length ? `<tr><td colspan="3" class="muted">Ingen baner på anlegget er knyttet til fotball.no.</td></tr>`
+    : rows.length ? rows.map(([n, c]) => { const cur = a.delbaner.find(d => (d.alias || []).includes(n));
+      return `<tr data-bane="${esc(n)}"><td>${esc(n)}</td><td class="num">${c}</td><td><div class="kvwrap">${cur ? pitchFor(a, cur.id, 44) : ""}<select class="rw" aria-label="Ligger på">${cur ? "" : `<option value="">Ikke koblet</option>`}${opts(cur?.id)}</select></div></td></tr>`; }).join("")
     : `<tr><td colspan="3" class="muted">Ingen kamper fra fotball.no på dette anlegget ennå.</td></tr>`;
 }
 
@@ -968,7 +1080,7 @@ function showTraining(id, date) {
   const t = S.treninger[id]; if (!t) return; const a = anlegg(t.anleggId); const d = delbane(a, t.delbaneId);
   const avl = date ? (t.avlyst || []).includes(date) : false;
   const canDel = canDeleteTraining(t), canEd = canEditTraining(t);
-  openDlg(t.lag, `<dl class="kv"><dt>Tid</dt><dd class="num">${DAGER[t.ukedag - 1]} ${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(d?.navn || "?")}, ${esc(a?.navn || "")}</span></span></dd>
+  openDlg(t.lag, `<dl class="kv"><dt>Tid</dt><dd class="num">${DAGER[t.ukedag - 1]} ${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(delLabel(a, t.delbaneId))}, ${esc(a?.navn || "")}</span></span></dd>
     <dt>Periode</dt><dd class="num">${fmtDate(t.fom)} – ${fmtDate(t.tom)}</dd>${t.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(t.merknad)}</dd>` : ""}
     ${(t.avlyst || []).length && showMerknad() ? `<dt>Avlyst</dt><dd class="num">${t.avlyst.map(fmtDate).join(", ")}</dd>` : ""}
     ${date ? `<dt>Denne gangen</dt><dd>${fmtDate(date)}${avl ? ' <span class="err">avlyst</span>' : ""}</dd>` : ""}</dl>
@@ -990,7 +1102,7 @@ function showKamp(id) {
     const d = delbane(a, k.delbaneId);
     openDlg(man ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
       `<dl class="kv"><dt>Dato</dt><dd class="num">${fmtDate(k.dato)} ${k.dato.slice(0, 4)}</dd><dt>Tid</dt><dd class="num">${fromMin(s)}–${fromMin(s + dur)}</dd>
-        <dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, k.delbaneId, 48)}<span>${esc(d?.navn || k.baneNavn || "?")}, ${esc(a?.navn || "")}</span></span></dd>
+        <dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, k.delbaneId, 48)}<span>${esc(d ? delLabel(a, k.delbaneId) : k.baneNavn || "?")}, ${esc(a?.navn || "")}</span></span></dd>
         ${man ? (k.lag ? `<dt>Lag</dt><dd>${esc(k.lag)}</dd>` : "") + (k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : "")
           : `<dt>Turnering</dt><dd>${esc(k.turnering || "")}</dd><dt>Spillform</dt><dd>${esc(k.spillform || "")}</dd>${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}`}</dl>
         ${man ? "" : `<p class="note">Kampen er hentet fra fotball.no. Tiden banen er opptatt inkluderer oppvarming.</p>`}`,
@@ -1034,7 +1146,7 @@ function newBooking(date, minutes) {
       <label class="wide">Del av banen<select id="bf-del"></select></label>
       <label class="wide">Merknad<input type="text" id="bf-merk"></label></form>`,
     `<span class="spacer"></span><button class="btn primary rw" id="bSave">Lagre booking</button>`);
-  delOptions($("#bf-del"), a, a.delbaner[0]?.id);
+  delOptions($("#bf-del"), a, defaultPart(a, S.baneId));
   $("#bSave").onclick = async () => {
     const tittel = $("#bf-tittel").value.trim(); if (!tittel) { $("#bf-tittel").focus(); return; }
     const k = { kilde: "manuell", tittel, dato: $("#bf-dato").value, tid: $("#bf-tid").value, varighet: +$("#bf-var").value || 60,
@@ -1126,7 +1238,7 @@ function renderRequestForm() {
 function newRequest(date, minutes) {
   if (!canRequest()) return;
   show("foresporsler"); renderRequestForm();
-  if (S.anleggId) { $("#rf-anlegg").value = S.anleggId; delOptions($("#rf-del"), curA()); }
+  if (S.anleggId) { $("#rf-anlegg").value = S.anleggId; delOptions($("#rf-del"), curA(), defaultPart(curA(), S.baneId)); }
   if (date) {
     $("#rf-type").value = "enkelt"; $("#rf-dato").value = date;
     if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#rf-fra").value = fromMin(st); $("#rf-til").value = fromMin(Math.min(st + 90, 23 * 60)); }
@@ -1137,7 +1249,7 @@ function requestSummary(r) {
   const a = anlegg(r.anleggId), d = delbane(a, r.delbaneId);
   const when = r.type === "enkelt" ? `${fmtDate(r.dato)} ${r.dato.slice(0, 4)}, ${esc(r.fra)}–${esc(r.til)}`
     : `Hver ${DAGER[r.ukedag - 1]} ${esc(r.fra)}–${esc(r.til)}, ${fmtDate(r.fom)} – ${fmtDate(r.tom)}`;
-  return `<span class="kvwrap">${pitchFor(a, r.delbaneId, 44)}<span>${when} · ${esc(d?.navn || "?")}, ${esc(a?.navn || "?")}</span></span>`;
+  return `<span class="kvwrap">${pitchFor(a, r.delbaneId, 44)}<span>${when} · ${esc(delLabel(a, r.delbaneId))}, ${esc(a?.navn || "?")}</span></span>`;
 }
 const STATUS = { ny: "Venter", godkjent: "Godkjent", avslatt: "Avslått" };
 function renderRequests() {
@@ -1332,9 +1444,9 @@ function showPreview() {
   const names = [...new Set(IMP.list.map(k => k.baneNavn))];
   const known = names.filter(n => findDelbaneByName(n)), unknown = names.filter(n => !findDelbaneByName(n));
   const dates = IMP.list.map(k => k.dato).sort(); IMP.from = dates[0]; IMP.to = dates[dates.length - 1];
-  const target = n => { const f = findDelbaneByName(n); if (f) return f.d; const g = guessDelbane(n); return delbaneByZone(a, g); };
+  const target = n => { const f = findDelbaneByName(n); if (f) return f.d; return guessPart(a, n); };
   $("#impSummary").innerHTML = `<p><b class="num">${IMP.list.length}</b> kamper fra <span class="num">${fmtDate(IMP.from)} ${IMP.from.slice(0, 4)}</span> til <span class="num">${fmtDate(IMP.to)} ${IMP.to.slice(0, 4)}</span> i <span class="mono">${esc(IMP.file)}</span>.</p>
-    ${unknown.length ? `<p class="note">${a ? `Kobling av baner på <b>${esc(a.navn)}</b>: ` : `<span class="err">Legg til et anlegg under Baner før du importerer.</span> `}${unknown.map(n => { const ex = a && target(n); return `<span class="pill">${esc(n)} → ${esc(ex ? ex.navn : "ny delbane")}</span>`; }).join(" ")}. Du kan justere plasseringen under Baner etterpå.</p>` : ""}
+    ${unknown.length ? `<p class="note">${a ? `Kobling av baner på <b>${esc(a.navn)}</b>: ` : `<span class="err">Legg til et anlegg under Baner før du importerer.</span> `}${unknown.map(n => { const ex = a && target(n); return `<span class="pill">${esc(n)} → ${esc(ex ? delLabel(a, ex.id) : "ny delbane")}</span>`; }).join(" ")}. Du kan justere plasseringen under Baner etterpå.</p>` : ""}
     ${known.length ? `<p class="note">Kjente delbaner: ${known.map(n => `<span class="pill">${esc(findDelbaneByName(n).d.navn)}</span>`).join(" ")}</p>` : ""}`;
   $("#impRows").innerHTML = IMP.list.slice().sort((x, y) => (x.dato + x.tid).localeCompare(y.dato + y.tid)).map(k => `<tr><td class="num">${fmtDate(k.dato)}</td><td class="num">${esc(k.tid)}</td><td>${esc(k.baneNavn)}</td><td>${esc(k.hjemmelag)} – ${esc(k.bortelag)}</td></tr>`).join("");
   $("#impPreview").hidden = false; $("#impGo").disabled = S.ro || !a;
@@ -1351,8 +1463,7 @@ async function runImport() {
     let cfgChanged = false;
     const docs = IMP.list.map(k => {
       let hit = lookup(k.baneNavn);
-      if (!hit) { const g = guessDelbane(k.baneNavn); let d = delbaneByZone(a, g);
-        if (d) { d.alias = [...new Set([...(d.alias || []), k.baneNavn])]; } else { d = { id: "d-" + uid(), navn: k.baneNavn, start: g.start, bredde: g.bredde, alias: [k.baneNavn] }; a.delbaner.push(d); }
+      if (!hit) { const d = guessPart(a, k.baneNavn); d.alias = [...new Set([...(d.alias || []), k.baneNavn])];
         a.delbaner.sort((x, y) => (y.bredde - x.bredde) || (x.start - y.start)); cfgChanged = true; hit = { an: a, d }; }
       const id = kampId(k); const old = S.kamper[id];
       const doc = { kilde: "fotball.no", dato: k.dato, tid: k.tid, hjemmelag: k.hjemmelag, bortelag: k.bortelag, baneNavn: k.baneNavn, turnering: k.turnering, kampnr: k.kampnr,
@@ -1389,7 +1500,7 @@ function initOppsett() {
     e.preventDefault(); const navn = $("#af-navn").value.trim(); if (!navn) return;
     const fiks = $("#af-fiks").value.replace(/\D/g, "");
     const c = cfgDraft(); const id = "a-" + uid();
-    c.anlegg.push({ id, navn, fiksId: fiks, delbaner: standardDelbaner() });
+    c.anlegg.push(normalizeAnlegg({ id, navn, fiksId: fiks }));
     try { await S.backend.saveCfg(c); S.anleggId = id; saveUi(); $("#oA").value = id; $("#af-navn").value = ""; $("#af-fiks").value = ""; renderAll(); } catch (er) { setStatus(esc(errText(er))); }
   };
   $("#oA").onchange = renderOppsett;
@@ -1397,11 +1508,73 @@ function initOppsett() {
     const id = $("#oA").value; if (!id) return; const c = cfgDraft(); c.anlegg = c.anlegg.filter(a => a.id !== id); await S.backend.saveCfg(c);
     $("#oDelA").disabled = false; delete $("#oDelA").dataset.armed; $("#oDelA").textContent = "Slett anlegg"; $("#oA").value = "";
   });
-  $("#dList").addEventListener("change", e => {
-    const tr = e.target.closest("tr[data-did]"); if (!tr || e.target.dataset.f !== "navn") return; const did = tr.dataset.did, aId = $("#oA").value;
-    saveCfgSoon(c => { const d = c.anlegg.find(a => a.id === aId)?.delbaner.find(x => x.id === did); if (d) d.navn = e.target.value.trim() || d.navn; });
+  // banekort: navn, underlag, størrelse, kobling, hvilke deler som finnes
+  const cardErr = (bId, msg) => { const m = $(`.banecard[data-bid="${CSS.escape(bId)}"] .meta`); if (m) m.innerHTML = `<span class="err">${esc(msg)}</span>`; };
+  $("#baneCards").addEventListener("change", e => {
+    const card = e.target.closest(".banecard"); if (!card) return; const bId = card.dataset.bid, aId = $("#oA").value;
+    const a = anlegg(aId); const tr = e.target.closest("tr[data-did]");
+    if (e.target.dataset.bf) {
+      const f = e.target.dataset.bf, v = e.target.value;
+      saveCfgSoon(c => { const A = c.anlegg.find(x => x.id === aId); const b = A?.baner.find(x => x.id === bId); if (!b) return;
+        if (f === "navn") b.navn = v.trim() || b.navn;
+        if (f === "underlag") b.underlag = v;
+        if (f === "storrelse") { // bytt standardnavn på delene hvis de ikke er endret
+          const old = partNames(b.storrelse), nw = partNames(v); b.storrelse = v;
+          A.delbaner.filter(d => d.baneId === bId).forEach(d => { const i = old.indexOf(d.navn); if (i >= 0) d.navn = nw[i]; });
+        } });
+      renderAll(); return;
+    }
+    if (tr && e.target.dataset.pf) {
+      const did = tr.dataset.did, d = delbane(a, did);
+      if (e.target.dataset.pf === "aktiv" && !e.target.checked && (d.alias || []).length) {
+        e.target.checked = true; cardErr(bId, `${d.navn} er koblet til ${d.alias.join(", ")} på fotball.no. Flytt koblingen først.`); return;
+      }
+      const v = e.target.dataset.pf === "aktiv" ? e.target.checked : e.target.value.trim();
+      saveCfgSoon(c => { const x = c.anlegg.find(y => y.id === aId)?.delbaner.find(y => y.id === did); if (!x) return;
+        if (e.target.dataset.pf === "aktiv") x.aktiv = v; else x.navn = v || x.navn; });
+      renderAll();
+    }
+  });
+  $("#baneCards").addEventListener("click", e => {
+    const card = e.target.closest(".banecard"); if (!card) return; const bId = card.dataset.bid, aId = $("#oA").value, a = anlegg(aId);
+    const k = e.target.closest("[data-kobling]");
+    if (k) {
+      if (k.dataset.kobling === "fri" && partsOf(a, bId, true).some(d => (d.alias || []).length)) { cardErr(bId, "Banen har koblinger til fotball.no. Flytt dem til en annen bane først."); return; }
+      saveCfgSoon(c => { const b = c.anlegg.find(x => x.id === aId)?.baner.find(x => x.id === bId); if (b) b.kobling = k.dataset.kobling; });
+      renderAll(); return;
+    }
+    const del = e.target.closest("[data-bdel]");
+    if (del && !del.dataset.wired) {
+      if (a.baner.length < 2) { cardErr(bId, "Anlegget må ha minst én bane."); return; }
+      const ids = new Set(partsOf(a, bId, true).map(d => d.id));
+      if (partsOf(a, bId, true).some(d => (d.alias || []).length)) { cardErr(bId, "Banen har koblinger til fotball.no. Flytt dem først."); return; }
+      const used = [...Object.values(S.treninger), ...Object.values(S.kamper), ...Object.values(S.foresporsler).filter(r => r.status === "ny")].filter(x => x.anleggId === aId && ids.has(x.delbaneId)).length;
+      if (used) { cardErr(bId, `${used} treninger, bookinger eller forespørsler bruker banen. Flytt eller slett dem først.`); return; }
+      del.dataset.wired = "1";
+      confirmBtn(del, "Bekreft: slett banen", async () => { const c = cfgDraft(); const A = c.anlegg.find(x => x.id === aId); A.baner = A.baner.filter(b => b.id !== bId); A.delbaner = A.delbaner.filter(d => d.baneId !== bId); await S.backend.saveCfg(c); if (S.baneId === bId) { S.baneId = null; saveUi(); } });
+      del.click();
+    }
+  });
+  $("#aEdit").addEventListener("change", e => {
+    const aId = $("#oA").value; if (!aId) return; const v = e.target.value.trim();
+    saveCfgSoon(c => { const A = c.anlegg.find(x => x.id === aId); if (!A) return;
+      if (e.target.id === "aEdit-navn" && v) A.navn = v;
+      if (e.target.id === "aEdit-fiks") A.fiksId = v.replace(/\D/g, ""); });
     renderAll();
   });
+  $("#oAddB").onclick = async () => {
+    const aId = $("#oA").value; if (!aId) return; const c = cfgDraft(); const A = c.anlegg.find(x => x.id === aId); const bId = "b-" + uid();
+    A.baner.push({ id: bId, navn: "Ny bane", underlag: "gress", storrelse: "11", kobling: "fri" });
+    A.delbaner.push(...newBaneParts(bId, "11").map((d, i) => ({ ...d, aktiv: i === 0 })));
+    try { await S.backend.saveCfg(c); setTimeout(() => { const el = $(`#bn-${CSS.escape(bId)}`); el?.focus(); el?.select(); }, 50); } catch (er) { setStatus(esc(errText(er))); }
+  };
+  $("#mAdd").onsubmit = async e => {
+    e.preventDefault(); const navn = $("#mAdd-navn").value.trim(), did = $("#mAdd-del").value, aId = $("#oA").value; if (!navn || !did) return;
+    const c = cfgDraft(); const A = c.anlegg.find(x => x.id === aId);
+    for (const d of A.delbaner) d.alias = (d.alias || []).filter(x => x !== navn);
+    A.delbaner.find(d => d.id === did).alias.push(navn);
+    try { await S.backend.saveCfg(c); $("#mAdd-navn").value = ""; } catch (er) { setStatus(esc(errText(er))); }
+  };
   // Flytt en fotball.no-bane til en annen delbane: oppdater koblingen og kampene som ligger der
   $("#mList").addEventListener("change", async e => {
     const tr = e.target.closest("tr[data-bane]"); if (!tr || !e.target.value) return; const navn = tr.dataset.bane, aId = $("#oA").value, did = e.target.value;
@@ -1413,7 +1586,7 @@ function initOppsett() {
       const moves = Object.entries(S.kamper).filter(([, k]) => k.anleggId === aId && k.baneNavn === navn && !k.delbaneManuell && k.delbaneId !== did);
       let n = 0;
       for (const [id, k] of moves) { await S.backend.put("kamper", id, { ...clone(k), delbaneId: did }); n++; }
-      setStatus(`<span class="ok">${esc(navn)} er koblet til ${esc(a.delbaner.find(d => d.id === did).navn)}. ${n} kamper flyttet.</span>`);
+      setStatus(`<span class="ok">${esc(navn)} er koblet til ${esc(delLabel(normalizeAnlegg(clone(a)), did))}. ${n} kamper flyttet.</span>`);
     } catch (er) { setStatus(`<span class="err">${esc(errText(er))}</span>`); }
   });
 }
@@ -1425,18 +1598,18 @@ function show(v) {
   if (v === "uke") renderWeek();
 }
 $$("nav.tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
-$("#anleggSel").onchange = e => { S.anleggId = e.target.value; saveUi(); renderAll(); };
+$("#anleggSel").onchange = e => { const [aId, bId] = e.target.value.split("|"); S.anleggId = aId; S.baneId = bId; saveUi(); renderAll(); };
 $("#prevW").onclick = () => { S.week = addDays(S.week, -7); renderWeek(); renderSeason(); };
 $("#nextW").onclick = () => { S.week = addDays(S.week, 7); renderWeek(); renderSeason(); };
 $("#todayW").onclick = () => { S.week = monday(new Date()); renderWeek(); renderSeason(); };
 function jump(dir) {
   const a = curA(); if (!a) return; let w = S.week;
-  for (let i = 0; i < 104; i++) { w = addDays(w, 7 * dir); if (occurrences(w, a.id).length) { S.week = w; renderWeek(); renderSeason(); return; } }
+  for (let i = 0; i < 104; i++) { w = addDays(w, 7 * dir); if (occurrences(w, a.id, curBane()?.id).length) { S.week = w; renderWeek(); renderSeason(); return; } }
   setStatus(`Ingen aktivitet ${dir > 0 ? "etter" : "før"} denne uka (søkte to år). `); setTimeout(renderStatus, 3000);
 }
 $("#jumpPrev").onclick = () => jump(-1); $("#jumpNext").onclick = () => jump(1);
 $("#strip").onclick = e => { const b = e.target.closest("[data-week]"); if (!b) return; S.week = parseYmd(b.dataset.week); renderWeek(); renderSeason(); };
-$("#addTrain").onclick = () => { stopEdit(); show("treninger"); applyRoleUI(); if (S.anleggId) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA()); } (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus(); };
+$("#addTrain").onclick = () => { stopEdit(); show("treninger"); applyRoleUI(); if (S.anleggId) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), defaultPart(curA(), S.baneId)); } (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus(); };
 $("#addBooking").onclick = () => newBooking(ymd(S.week));
 $("#addRequest").onclick = () => newRequest(null);
 $("#tfInfoReq").onclick = () => newRequest(null);
