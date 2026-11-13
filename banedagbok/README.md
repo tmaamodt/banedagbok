@@ -50,6 +50,8 @@ Når admin godkjenner en forespørsel, blir den automatisk en treningstid. Fanen
 
 **Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. En trener sender forespørsel om treningskamp fra ukevisningen, og den legges inn når admin godkjenner. De vises som kamper i lilla. Henteskriptet rører dem aldri.
 
+**Kamper fra fotball.no** kan bare vises. Ingen kan endre eller slette dem i banedagboken, heller ikke admin. Hvilken del av banen de havner på, styres av koblingene under Baner. Skal en kamp flyttes, søker man om omberamming hos fotball.no (lenke i kampvinduet). Banen er reservert fra 15 minutter før kampstart: en kamp med avspark 20:15 vises som opptatt fra 20:00, og kampvinduet viser både kampstart og tiden banen er opptatt.
+
 **Kamp går foran trening.** Treningstidene settes opp først. En trening som overlapper en kamp eller booking på samme del av banen, viker. Det gjelder uansett hvordan kampen er lagt inn: fra fotball.no, importert, som treningskamp eller som booking for hånd.
 
 - I uka vises den stiplet og overstreket.

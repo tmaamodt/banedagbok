@@ -1027,6 +1027,10 @@ function pitchSvg(zs, ze, opts = {}) {
 }
 function pitchFor(a, delId, w) { const [zs, ze] = zoneOf(a, delId); return pitchSvg(zs, ze, { w, anlegg: a, bane: baneOf(a, delId)?.id, label: delLabel(a, delId) }); }
 function spillformKey(sf) { const m = /(\d{1,2})\s*mot/i.exec(sf || ""); return m ? m[1] : null; }
+// Kamper fra fotball.no: banen er reservert 15 minutter før kampstart
+const FORVARMING = 15;
+const erFotballKamp = k => (k.kilde || "fotball.no") === "fotball.no";
+function kampVindu(k) { const kick = toMin(k.tid); if (kick == null) return null; return { kick, start: kick - (erFotballKamp(k) ? FORVARMING : 0), end: kick + kampVarighet(k) }; }
 function kampVarighet(k) {
   if (k.varighet) return +k.varighet;
   const key = spillformKey(k.spillform);
@@ -1050,9 +1054,10 @@ function occurrences(weekStart, aId, bId) {
     if (k.anleggId !== aId || !days.includes(k.dato) || !onBane(k.delbaneId)) continue;
     const s = toMin(k.tid); if (s == null) continue;
     const manual = k.kilde === "manuell", tk = k.kilde === "treningskamp";
-    out.push({ type: manual ? "booking" : tk ? "tkamp" : "kamp", id, date: k.dato, start: s, end: s + kampVarighet(k), del: k.delbaneId,
+    const w = kampVindu(k);
+    out.push({ type: manual ? "booking" : tk ? "tkamp" : "kamp", id, date: k.dato, start: w.start, end: w.end, kick: w.kick, del: k.delbaneId,
       label: manual ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
-      sub: manual ? (showMerknad() ? (k.merknad || "") : "") : tk ? "Treningskamp" : (k.turnering || ""), src: k });
+      sub: manual ? (showMerknad() ? (k.merknad || "") : "") : tk ? "Treningskamp" : [`Kampstart ${fromMin(w.kick)}`, k.turnering || ""].filter(Boolean).join(" · "), src: k });
   }
   if (erGjest(A)) out.push(...gjestItems(A, days, bId, out));
   for (const [id, r] of Object.entries(S.foresporsler)) {
@@ -1076,7 +1081,7 @@ function gjestDel(a, bId, part) {
 function gjestItems(a, days, bId, andre) {
   const out = [], first = days[0], last = days[days.length - 1];
   // kamper fra fotball.no på samme bane og samme tid finnes allerede: ikke vis Hoopit-kampen i tillegg
-  const fb = new Set(andre.filter(x => x.type === "kamp").map(x => `${x.date}|${x.start}|${baneOf(a, x.del)?.id}`));
+  const fb = new Set(andre.filter(x => x.type === "kamp").map(x => `${x.date}|${x.kick ?? x.start}|${baneOf(a, x.del)?.id}`));
   for (const [docId, doc] of Object.entries(S.gjest)) {
     if (doc.anleggId !== a.id || (bId && doc.baneId !== bId) || !baneById(a, doc.baneId)) continue;
     if (doc.maned < first.slice(0, 7) || doc.maned > last.slice(0, 7)) continue;
@@ -1692,17 +1697,17 @@ function showTraining(id, date) {
 }
 function showKamp(id) {
   const k = S.kamper[id]; if (!k) return; const a = anlegg(k.anleggId); const man = k.kilde === "manuell", tk = k.kilde === "treningskamp";
-  const s = toMin(k.tid), dur = kampVarighet(k);
+  const s = toMin(k.tid), dur = kampVarighet(k), fb = erFotballKamp(k), w = kampVindu(k);
   if (tk && canEditKamp(k)) return treningskampDialog(id);
-  if (!isAdmin()) {
+  if (!isAdmin() || fb) {
     const d = delbane(a, k.delbaneId);
     openDlg(man ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
-      `<dl class="kv"><dt>Dato</dt><dd class="num">${fmtDate(k.dato)} ${k.dato.slice(0, 4)}</dd><dt>Tid</dt><dd class="num">${fromMin(s)}–${fromMin(s + dur)}</dd>
+      `<dl class="kv"><dt>Dato</dt><dd class="num">${fmtDate(k.dato)} ${k.dato.slice(0, 4)}</dd>${fb ? `<dt>Kampstart</dt><dd class="num">${fromMin(s)}</dd><dt>Banen opptatt</dt><dd class="num">${fromMin(w.start)}–${fromMin(w.end)}</dd>` : `<dt>Tid</dt><dd class="num">${fromMin(s)}–${fromMin(s + dur)}</dd>`}
         <dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, k.delbaneId, 48)}<span>${esc(d ? delLabel(a, k.delbaneId) : k.baneNavn || "?")}, ${esc(a?.navn || "")}</span></span></dd>
         ${man ? (k.lag ? `<dt>Lag</dt><dd>${esc(k.lag)}</dd>` : "") + (k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : "")
           : `<dt>${tk ? "Type" : "Turnering"}</dt><dd>${tk ? `<span class="pill tkamp">Treningskamp</span>` : esc(k.turnering || "")}</dd><dt>Spillform</dt><dd>${esc(k.spillform || "")}</dd>${tk && k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : ""}${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}`}</dl>
-        ${man ? "" : tk ? `<p class="note">Treningskampen er lagt inn i banedagboken og finnes ikke på fotball.no.</p>` : `<p class="note">Kampen er hentet fra fotball.no. Tiden banen er opptatt inkluderer oppvarming. Skal kampen flyttes, søker du om omberamming <a href="https://www.fotball.no/lov-og-reglement/skjemaer-og-kontrakter/omberamming/" target="_blank" rel="noopener">her</a>.</p>`}`,
-      canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">${tk ? "Avlys treningskampen" : "Slett booking"}</button>` : "");
+        ${man ? "" : tk ? `<p class="note">Treningskampen er lagt inn i banedagboken og finnes ikke på fotball.no.</p>` : `${fb && k.kampnr ? `<dl class="kv"><dt>Kampnr.</dt><dd class="num">${esc(k.kampnr)}</dd><dt>Bane (fotball.no)</dt><dd>${esc(k.baneNavn || "")}</dd>${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}</dl>` : ""}<p class="note">Kampen er hentet fra fotball.no og kan ikke endres eller slettes her. Banen er reservert fra ${FORVARMING} minutter før kampstart. ${isAdmin() ? "Hvilken del av banen kampene havner på, styres av koblingene under Baner. " : ""}Skal kampen flyttes, søker du om omberamming <a href="https://www.fotball.no/lov-og-reglement/skjemaer-og-kontrakter/omberamming/" target="_blank" rel="noopener">her</a>.</p>`}`,
+      !fb && canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">${tk ? "Avlys treningskampen" : "Slett booking"}</button>` : "");
     if ($("#kDel")) confirmBtn($("#kDel"), tk ? "Bekreft: avlys" : "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); if (tk) flash(`Treningskampen ${fmtDate(k.dato)} er avlyst.`); });
     return;
   }
