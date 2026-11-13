@@ -178,6 +178,16 @@ table.pl td.pc span.wk { position: absolute; right: 2px; bottom: 1px; font: 600 
 table.pl td.pc span.km { position: absolute; right: 2px; top: 1px; font: 600 9px var(--f-mono); color: var(--match) }
 table.pl td.pc.clash { box-shadow: inset 0 0 0 2px var(--match) }
 .plsum { display: grid; gap: 6px; font-size: 14px }
+.plsteps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: st }
+.plsteps li { counter-increment: st; display: grid; gap: 2px; padding: 10px 12px 10px 46px; border: 1px solid var(--line); border-radius: 10px; position: relative; font-size: 13px; color: var(--muted) }
+.plsteps li::before { content: counter(st); position: absolute; left: 12px; top: 10px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 14px var(--f-display); background: var(--line); color: var(--ink) }
+.plsteps li b { color: var(--ink); font-size: 14px }
+.plsteps li.done::before { content: "✓"; background: var(--pitch); color: var(--pitch-ink) }
+.plsteps li.now { border-color: var(--pitch); background: var(--pitch-soft) }
+.plcopy.ready { outline: 2px solid var(--pitch); outline-offset: -2px }
+table.lagsum { width: auto; min-width: 0; font-size: 14px }
+table.lagsum td, table.lagsum th { padding: 4px 14px 4px 0 }
+table.lagsum tr.null td { color: var(--muted) }
 .plsum .wrow { display: grid; grid-template-columns: 14em 1fr; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line) }
 
 /* Lag og treningsgrupper */
@@ -415,7 +425,12 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
   <section id="v-plan" hidden style="display:grid;gap:14px">
     <div class="panel" style="display:grid;gap:12px">
       <div class="bar"><h2>Treningsplan</h2><span class="spacer"></span><span class="note" id="plState"></span></div>
-      <p class="note"><b>1.</b> Lag en mal for en hel uke, som i treningsarket. Malen er ikke knyttet til noen uke. <b>2.</b> Legg malen inn i ukene den skal gjelde for, under rutenettet. Du kan ha flere maler, for eksempel én for sommersesongen og én for vinteren.</p>
+      <ol class="plsteps" id="plSteps">
+        <li data-step="1"><b>Velg eller lag en mal</b><span>En mal er én uke med treninger, som i treningsarket.</span></li>
+        <li data-step="2"><b>Mal inn treningene og lagre</b><span>Rutenettet under. Trykk «Lagre malen» når du er ferdig.</span></li>
+        <li data-step="3"><b>Kopier malen til uker</b><span>Velg fra uke og til uke nederst og trykk «Kopier».</span></li>
+      </ol>
+      <h3>1. Velg eller lag en mal</h3>
       <form class="plbar" id="pl" onsubmit="return false">
         <label>Mal<select id="pl-mal"></select></label>
         <label>Navn på malen<input type="text" id="pl-navn" style="width:20ch"></label>
@@ -428,6 +443,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <div id="plReport" class="note"></div>
     </div>
     <div class="panel" style="display:grid;gap:10px;min-width:0">
+      <h3 id="plEditTitle">2. Mal inn treningene</h3>
       <div class="bar" style="align-items:flex-start">
         <div class="daytabs" id="plDays" role="group" aria-label="Gå til ukedag"></div><span class="spacer"></span>
         <label class="note">Fra kl. <select id="pl-from"></select></label><label class="note">til <select id="pl-to"></select></label>
@@ -435,20 +451,26 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <div class="plbaner" id="plBaner" role="group" aria-label="Baner som vises"></div>
       <div class="palette" id="plPal"></div>
       <div class="plwrap"><table class="pl" id="plGrid"></table></div>
+      <div id="plDobbel"></div>
       <div class="bar"><button class="btn primary" type="button" id="plSave">Lagre malen</button><button class="btn ghost" type="button" id="plReset">Forkast endringer</button><span id="plMsg" class="note"></span></div>
     </div>
-    <div class="panel" style="display:grid;gap:12px">
-      <h2 id="plBrukTitle">Legg malen inn i uker</h2>
+    <div class="panel plcopy" id="plCopy" style="display:grid;gap:12px">
+      <h3 id="plBrukTitle">3. Kopier malen til uker</h3>
       <form class="plbar" id="plBruk" onsubmit="return false">
         <label>Fra uke<select id="pl-ufra"></select></label>
         <label>Til uke<select id="pl-util"></select></label>
         <label>Hvilke uker<select id="pl-par"><option value="">Alle ukene</option><option value="partall">Bare partallsuker</option><option value="oddetall">Bare oddetallsuker</option></select></label>
-        <button class="btn primary" type="button" id="pl-bruk">Legg malen inn</button>
+        <button class="btn primary" type="button" id="pl-bruk">Kopier malen til ukene</button>
         <button class="btn ghost" type="button" id="pl-fjern">Fjern planen i ukene</button>
       </form>
-      <p class="note">Bare treninger fra planen i de valgte ukene byttes ut. Kamper, treningskamper og bookinger røres aldri, uansett hvordan de er lagt inn. En trening som kolliderer med dem, viker og faller bort den dagen. Andre faste treninger og enkelttreninger røres heller ikke.</p>
+      <div id="plUkerInfo" class="note"></div>
+      <p class="note">Treningene fra malen legges inn i hver av ukene. Bare treninger fra planen i de valgte ukene byttes ut. Kamper, treningskamper og bookinger røres aldri, uansett hvordan de er lagt inn. En trening som kolliderer med dem, viker og faller bort den dagen. Andre faste treninger og enkelttreninger røres heller ikke.</p>
       <div id="plWarn"></div>
       <div id="plBrukMsg" class="note"></div>
+    </div>
+    <div class="panel plsum" style="display:grid;gap:12px">
+      <h3 id="plLagTitle">Økter per lag i malen</h3>
+      <div id="plLag"></div>
       <h3>Planlagte uker</h3>
       <div id="plOversikt" class="plsum"></div>
     </div>
@@ -2017,7 +2039,7 @@ function initLag() {
 // i flere uker blir én trening med en liste over uker. Eldre planer for en datoperiode (plan = "fom_tom") gjøres om
 // når et år de gjelder endres. Kamper, treningskamper og bookinger røres aldri: treninger viker for dem.
 const SLOT = 30;
-const P = { hidden: new Set((() => { try { return JSON.parse(localStorage.getItem("banedagbok:plbaner") || "[]"); } catch (e) { return []; } })()), malId: null, navn: "", cells: {}, dirty: false, isNew: false, lag: null, erase: false, from: 16 * 60, to: 22 * 60, painting: false, mode: null, extraLag: [], ufra: null, util: null, par: "" };
+const P = { hidden: new Set((() => { try { return JSON.parse(localStorage.getItem("banedagbok:plbaner") || "[]"); } catch (e) { return []; } })()), malId: null, navn: "", cells: {}, dirty: false, isNew: false, lag: null, erase: false, from: 16 * 60, to: 22 * 60, painting: false, mode: null, ufra: null, util: null, par: "" };
 const planId = y => `uke-${y}`;
 const lagHue = l => { let h = 0; for (const c of String(l)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const lagStyle = l => `background:hsl(${lagHue(l)} 55% var(--pl))`;
@@ -2130,9 +2152,9 @@ function planJobs(wc, y, unitOf) {
 // Maler
 const maler = () => S.cfg.maler || [];
 const malById = id => maler().find(m => m.id === id);
-function loadMal(id) { const m = malById(id); P.malId = m?.id || null; P.navn = m?.navn || ""; P.cells = clone(m?.celler || {}); P.dirty = false; P.isNew = false; P.extraLag = []; }
+function loadMal(id) { const m = malById(id); P.malId = m?.id || null; P.navn = m?.navn || ""; P.cells = clone(m?.celler || {}); P.dirty = false; P.isNew = false; }
 const malNavnFri = base => { let n = base, i = 2; while (maler().some(m => m.navn === n)) n = `${base} ${i++}`; return n; };
-function newMal(navn, cells) { P.malId = "m-" + uid(); P.navn = malNavnFri(navn); P.cells = clone(cells || {}); P.dirty = true; P.isNew = true; P.extraLag = []; }
+function newMal(navn, cells) { P.malId = "m-" + uid(); P.navn = malNavnFri(navn); P.cells = clone(cells || {}); P.dirty = true; P.isNew = true; }
 // Uker som «2026-45»
 const wkKey = (y, w) => `${y}-${String(w).padStart(2, "0")}`;
 const parseWk = v => String(v).split("-").map(Number);
@@ -2171,7 +2193,6 @@ async function applyWeeks(list, cells, onProgress) {
     const y = +ys, wc = yearCells(y); for (const w of ws) wc[w] = cells ? clone(cells) : {};
     const r = planJobs(wc, y, unitOf); jobs = jobs.concat(r.jobs); add += r.add; del += r.del;
   }
-  if (cells) { const nye = [...new Set(Object.values(cells))].filter(l => !(S.cfg.lag || []).includes(l)); if (nye.length) { const c = cfgDraft(); c.lag = [...new Set([...(c.lag || []), ...nye])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true })); await S.backend.saveCfg(c); } }
   await runJobs(jobs, onProgress);
   return { add, del };
 }
@@ -2184,6 +2205,37 @@ function lockedCells(cols) {
   }
   return out;
 }
+// Samme lag på flere baner samtidig: lov, men gir varsel. → [{lag, d, fra, til, baner}] og settet med ruter
+function dobbelt(cells) {
+  const at = {};
+  for (const [k, lag] of Object.entries(cells)) { const [a, b, d, , m] = k.split("|"); (at[[lag, d, m].join("|")] ||= new Set()).add(a + "|" + b); }
+  const hits = {}, keys = new Set();
+  for (const [key, set] of Object.entries(at)) if (set.size > 1) {
+    const [lag, d, m] = key.split("|"), h = hits[lag + "|" + d] ||= { lag, d: +d, mins: [], baner: new Set() };
+    h.mins.push(+m); set.forEach(x => h.baner.add(x)); keys.add(key);
+  }
+  const out = [];
+  for (const h of Object.values(hits)) {
+    h.mins.sort((a, b) => a - b); let st = h.mins[0], prev = st;
+    for (const m of [...h.mins.slice(1), null]) { if (m === prev + SLOT) { prev = m; continue; } out.push({ lag: h.lag, d: h.d, fra: st, til: prev + SLOT, baner: [...h.baner] }); st = prev = m; }
+  }
+  out.sort((x, y) => x.d - y.d || x.fra - y.fra || x.lag.localeCompare(y.lag, "nb"));
+  return { list: out, keys };
+}
+const baneNavn = ab => { const [aId, bId] = ab.split("|"), a = anlegg(aId), b = a?.baner.find(x => x.id === bId); return `${a?.navn || "?"} ${b?.navn || ""}`.trim(); };
+// Økter per lag: sammenhengende tid samme dag er én økt, uansett hvor mange baner eller kvarter
+function oktPerLag(cells) {
+  const by = {};
+  for (const [k, lag] of Object.entries(cells)) { const [, , d, , m] = k.split("|"); ((by[lag] ||= {})[d] ||= new Set()).add(+m); }
+  const rows = {};
+  for (const [lag, days] of Object.entries(by)) {
+    let okter = 0, min = 0; const dager = [];
+    for (const [d, set] of Object.entries(days)) { const ms = [...set].sort((a, b) => a - b); min += ms.length * SLOT; okter += ms.filter((m, i) => i === 0 || ms[i - 1] !== m - SLOT).length; dager.push(+d); }
+    rows[lag] = { lag, okter, min, dager: dager.sort() };
+  }
+  for (const l of S.cfg.lag || []) rows[l] ||= { lag: l, okter: 0, min: 0, dager: [] };
+  return Object.values(rows).sort((x, y) => x.lag.localeCompare(y.lag, "nb", { numeric: true }));
+}
 function renderPlanState() {
   const n = cellsToTrainings(P.cells, unitMap()).length;
   $("#plState").innerHTML = P.isNew ? `<b>Ny mal, ikke lagret</b> · ${n} treninger per uke` : P.dirty ? `<b>Endringer i malen er ikke lagret</b> · ${n} treninger per uke` : P.malId ? `Malen er lagret · ${n} treninger per uke` : "";
@@ -2195,7 +2247,7 @@ function renderPlan() {
   if (P.malId && !P.dirty && !malById(P.malId)) P.malId = null; // malen er slettet et annet sted
   if (!P.malId) { if (maler().length) loadMal(maler()[0].id); else newMal("Mal 1"); }
   else if (!P.dirty) loadMal(P.malId); // ingen endringer: vis alltid det som er lagret
-  const allCols = planColumns(), cols = allCols.filter(c => !P.hidden.has(c.a.id + "|" + c.b.id)), locked = lockedCells(cols);
+  const allCols = planColumns(), cols = allCols.filter(c => !P.hidden.has(c.a.id + "|" + c.b.id)), locked = lockedCells(cols), dob = dobbelt(P.cells);
   // maler
   const ms = [...maler()]; if (P.isNew) ms.push({ id: P.malId, navn: P.navn + " (ny)" });
   $("#pl-mal").innerHTML = ms.map(m => `<option value="${esc(m.id)}"${m.id === P.malId ? " selected" : ""}>${esc(m.id === P.malId && !P.isNew ? P.navn : m.navn)}</option>`).join("");
@@ -2216,12 +2268,13 @@ function renderPlan() {
   $("#pl-from").innerHTML = hrs.map(m => `<option value="${m}"${m === P.from ? " selected" : ""}>${fromMin(m)}</option>`).join("");
   $("#pl-to").innerHTML = hrs.map(m => m + 60).map(m => `<option value="${m}"${m === P.to ? " selected" : ""}>${fromMin(m % 1440 === 0 ? 1439 : m)}</option>`).join("");
   // palett
-  const used = new Set(Object.values(P.cells));
-  const lagAll = [...new Set([...(S.cfg.lag || []), ...used, ...P.extraLag])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
-  if (!P.lag && lagAll.length) P.lag = lagAll[0];
+  const lagAll = [...(S.cfg.lag || [])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
+  const ukjent = [...new Set(Object.values(P.cells))].filter(l => !lagAll.includes(l)).sort();
+  if ((!P.lag || !lagAll.includes(P.lag)) && lagAll.length) P.lag = lagAll[0];
   $("#plPal").innerHTML = `<span class="note">Mal med:</span>${lagAll.map(l => `<button type="button" class="lc" data-lag="${esc(l)}" style="${lagStyle(l)}" aria-pressed="${!P.erase && P.lag === l}">${esc(l)}</button>`).join("")}
-    <input type="text" id="pl-newlag" placeholder="Nytt lag" style="width:12ch" aria-label="Nytt lag"><button type="button" class="btn" id="pl-addlag">Legg til</button>
-    <button type="button" class="lc" id="pl-erase" aria-pressed="${P.erase}">Viskelær</button>`;
+    <button type="button" class="lc" id="pl-erase" aria-pressed="${P.erase}">Viskelær</button>
+    <span class="note">Nye lag opprettes på <a href="#" data-goto="lag">Lag-siden</a>.</span>
+    ${ukjent.length ? `<div class="note" style="flex-basis:100%"><span class="warn">Malen har lag som ikke finnes på Lag-siden:</span> ${ukjent.map(esc).join(", ")}. Opprett dem der, eller visk dem ut her.</div>` : ""}`;
   // rutenett
   const byA = []; for (const c of cols) { const g = byA[byA.length - 1]; if (g && g.a === c.a) g.n++; else byA.push({ a: c.a, n: 1 }); }
   const byB = []; for (const c of cols) { const g = byB[byB.length - 1]; if (g && g.b === c.b) g.n++; else byB.push({ b: c.b, n: 1 }); }
@@ -2237,8 +2290,9 @@ function renderPlan() {
       h += `<tr class="${m % 90 === 0 ? "hr" : ""}"><th class="t">${fromMin(m)}</th>`;
       for (const c of cols) {
         const k = cellKey(c.a.id, c.b.id, day, c.zs, m), v = P.cells[k], lk = locked[k], above = P.cells[cellKey(c.a.id, c.b.id, day, c.zs, m - SLOT)];
-        const cls = ["pc", c.zs + c.unit === 6 && c.unit === 3 ? "q1" : "", c.last ? "end" : "", !c.on ? "off" : "", lk && !v ? "lock" : ""].filter(Boolean).join(" ");
-        const tip = v ? `${DAGER[day - 1]} ${fromMin(m)} · ${v}` : lk ? `${lk.lag}: fast trening utenfor planen (${periodeTekst(lk)})` : "";
+        const dbl = v && dob.keys.has([v, day, m].join("|"));
+        const cls = ["pc", c.zs + c.unit === 6 && c.unit === 3 ? "q1" : "", c.last ? "end" : "", !c.on ? "off" : "", lk && !v ? "lock" : "", dbl ? "clash" : ""].filter(Boolean).join(" ");
+        const tip = v ? `${DAGER[day - 1]} ${fromMin(m)} · ${v}${dbl ? " · trener på flere baner samtidig" : ""}` : lk ? `${lk.lag}: fast trening utenfor planen (${periodeTekst(lk)})` : "";
         h += `<td class="${cls}" data-k="${k}"${v ? ` style="${lagStyle(v)}"` : lk ? ` style="${lagStyle(lk.lag)}"` : ""}${tip ? ` title="${esc(tip)}"` : ""}>`
           + (v && above !== v ? `<span class="lab">${esc(v)}</span>` : !v && lk ? `<span class="lab">${esc(lk.lag)}</span>` : "") + `</td>`;
       }
@@ -2249,16 +2303,32 @@ function renderPlan() {
   $("#plGrid").innerHTML = h + `</tbody>`;
   wrap.scrollTop = keep;
   const n = renderPlanState();
+  $("#plEditTitle").textContent = `2. Mal inn treningene i «${P.navn}»`;
+  $("#plDobbel").innerHTML = dob.list.length ? `<div class="alert" style="display:grid;gap:4px"><b>Samme lag på flere baner samtidig (${dob.list.length})</b><span class="note">Det er lov, men sjekk at det er meningen. Rutene har rød kant.</span>
+    <ul style="margin:0;padding-left:18px">${dob.list.map(x => `<li><b>${esc(x.lag)}</b> ${DAGER[x.d - 1]} ${fromMin(x.fra)}–${fromMin(x.til)}: ${x.baner.map(baneNavn).map(esc).join(" og ")}</li>`).join("")}</ul></div>` : "";
+  // økter per lag
+  const ok = oktPerLag(P.cells), har = ok.filter(r => r.okter), uten = ok.filter(r => !r.okter), kjent = new Set(S.cfg.lag || []);
+  $("#plLagTitle").textContent = `Økter per lag i «${P.navn}»`;
+  $("#plLag").innerHTML = `<table class="lagsum"><thead><tr><th>Lag</th><th class="num">Økter per uke</th><th class="num">Timer per uke</th><th>Dager</th></tr></thead><tbody>
+    ${har.map(r => `<tr><td><span class="chip" style="${lagStyle(r.lag)};padding-right:10px">${esc(r.lag)}</span>${kjent.has(r.lag) ? "" : ` <span class="warn" title="Finnes ikke på Lag-siden">?</span>`}</td><td class="num">${r.okter}</td><td class="num">${String(Math.round(r.min / 6) / 10).replace(".", ",")}</td><td>${r.dager.map(d => DAGER[d - 1].slice(0, 3)).join(", ")}</td></tr>`).join("")}
+    ${uten.map(r => `<tr class="null"><td>${esc(r.lag)}</td><td class="num">0</td><td class="num">0</td><td>ingen økter i malen</td></tr>`).join("")}
+    <tr><td><b>Totalt</b></td><td class="num"><b>${har.reduce((a, r) => a + r.okter, 0)}</b></td><td class="num"><b>${String(Math.round(har.reduce((a, r) => a + r.min, 0) / 6) / 10).replace(".", ",")}</b></td><td class="muted">${har.length} av ${ok.length} lag har trening</td></tr></tbody></table>`;
+  // steg
+  const steg = !n ? 2 : P.dirty ? 2 : 3;
+  $$("#plSteps li").forEach(li => { const k = +li.dataset.step; li.classList.toggle("done", k < steg); li.classList.toggle("now", k === steg); });
+  $("#plCopy").classList.toggle("ready", steg === 3);
   // legg inn i uker
   const now = new Date(), cy = isoWeekYear(now), opts = [];
   for (let y = cy - 1; y <= cy + 1; y++) for (let w = 1; w <= weeksInYear(y); w++) opts.push([y, w]);
   P.ufra ||= wkKey(cy, isoWeek(now)); P.util ||= wkKey(cy, weeksInYear(cy));
   const o = sel => opts.map(([y, w]) => `<option value="${wkKey(y, w)}"${wkKey(y, w) === sel ? " selected" : ""}>Uke ${w} ${y} · ${wkDates(y, w)}</option>`).join("");
   $("#pl-ufra").innerHTML = o(P.ufra); $("#pl-util").innerHTML = o(P.util); $("#pl-par").value = P.par;
-  $("#plBrukTitle").textContent = `Legg «${P.navn}» inn i uker`;
-  $("#pl-bruk").textContent = `Legg «${P.navn}» inn i ukene`;
+  $("#plBrukTitle").textContent = `3. Kopier «${P.navn}» til uker`;
+  $("#pl-bruk").textContent = `Kopier «${P.navn}» til ukene`;
   $("#pl-bruk").disabled = P.dirty || !n;
-  $("#pl-bruk").title = P.dirty ? "Lagre malen først" : !n ? "Malen er tom" : "";
+  const ch = weekList(P.ufra, P.util).filter(([, w]) => !P.par || (w % 2 === 0) === (P.par === "partall"));
+  $("#plUkerInfo").innerHTML = P.dirty ? `<span class="warn">Lagre malen først</span> (knappen under rutenettet). Så kan den kopieres.` : !n ? `<span class="warn">Malen er tom.</span> Mal inn treninger og lagre før du kopierer.`
+    : ch.length ? `Malen kopieres til <b>${ch.length} ${ch.length === 1 ? "uke" : "uker"}</b>: ${weeksText(ch)}.` : `<span class="err">Ingen uker i valget.</span>`;
   // oversikt over planlagte uker: én linje per mal
   const rows = new Map(); for (const x of st) if (x.label) { const r = rows.get(x.label) || []; r.push([x.y, x.w]); rows.set(x.label, r); }
   $("#plOversikt").innerHTML = rows.size ? [...rows].map(([label, list]) => `<div class="wrow"><span>${label === "Egen plan" ? `<span class="muted">Egen plan (lik ingen mal)</span>` : `<b>${esc(label)}</b>`}</span><span class="num">${weeksText(list)[0].toUpperCase() + weeksText(list).slice(1)} <span class="muted">(${list.length} ${list.length === 1 ? "uke" : "uker"})</span></span></div>`).join("")
@@ -2310,8 +2380,15 @@ function importTreningsark(wb) {
 function initPlan() {
   const guard = () => { if (!P.dirty) return true; $("#plMsg").innerHTML = `<span class="err">Malen har endringer som ikke er lagret. Lagre eller trykk «Forkast endringer» først.</span>`; return false; };
   $("#pl-mal").onchange = e => { const id = e.target.value; if (id === P.malId) return; if (!guard()) { e.target.value = P.malId; return; } loadMal(id); $("#plReport").innerHTML = ""; $("#plMsg").textContent = ""; renderPlan(); };
-  $("#pl-navn").addEventListener("input", e => { P.navn = e.target.value; P.dirty = true; renderPlanState(); });
-  $("#pl-navn").addEventListener("change", () => renderPlan());
+  // navnet oppdaterer bare tekstene: å tegne alt på nytt når feltet mister fokus, ville sluke klikket som flyttet fokuset
+  $("#pl-navn").addEventListener("input", e => {
+    P.navn = e.target.value; P.dirty = true; renderPlanState();
+    $("#plEditTitle").textContent = `2. Mal inn treningene i «${P.navn}»`; $("#plBrukTitle").textContent = `3. Kopier «${P.navn}» til uker`;
+    $("#pl-bruk").textContent = `Kopier «${P.navn}» til ukene`; $("#plLagTitle").textContent = `Økter per lag i «${P.navn}»`;
+    const o = $(`#pl-mal option[value="${CSS.escape(P.malId)}"]`); if (o) o.textContent = P.navn + (P.isNew ? " (ny)" : "");
+    $("#plUkerInfo").innerHTML = `<span class="warn">Lagre malen først</span> (knappen under rutenettet). Så kan den kopieres.`; $("#pl-bruk").disabled = true;
+    $$("#plSteps li").forEach(li => { li.classList.toggle("done", +li.dataset.step < 2); li.classList.toggle("now", +li.dataset.step === 2); }); $("#plCopy").classList.remove("ready");
+  });
   $("#pl-ny").onclick = () => { if (!guard()) return; newMal("Ny mal"); $("#plReport").innerHTML = ""; renderPlan(); $("#pl-navn").select(); };
   $("#pl-dup").onclick = () => { if (!guard()) return; newMal(P.navn + " (kopi)", P.cells); $("#plReport").innerHTML = ""; renderPlan(); $("#pl-navn").select(); };
   $("#pl-hent").onchange = e => {
@@ -2342,10 +2419,10 @@ function initPlan() {
         P.cells[cellKey(x.a.id, x.b.id, x.day, col.zs, m)] = x.lag;
       }
       const lags = [...new Set(res.found.map(x => x.lag))], biw = res.found.filter(x => x.uker);
-      P.extraLag = lags.filter(l => !(S.cfg.lag || []).includes(l)); P.dirty = true;
+      const ukjent = lags.filter(l => !(S.cfg.lag || []).includes(l)); P.dirty = true;
       $("#plReport").innerHTML = `<span class="ok">Importert ${res.found.length} treningsøkter for ${lags.length} lag fra ${esc(f.name)} inn i malen.</span>
         ${biw.length ? ` ${biw.length} økter er merket «annenhver» i arket, men ligger i malen hver uke. Skal de bare gjelde annenhver uke, lag en egen mal for dem og legg den inn med «Bare partallsuker» eller «Bare oddetallsuker».` : ""}
-        ${P.extraLag.length ? ` Nye lag som legges i laglista når du lagrer: ${P.extraLag.map(esc).join(", ")}.` : ""}
+        ${ukjent.length ? ` <span class="warn">Disse lagene finnes ikke på Lag-siden: ${ukjent.map(esc).join(", ")}.</span> Opprett dem der, eller visk dem ut i malen.` : ""}
         ${res.ignored.length ? ` Ark som ikke ble lest (annet format): ${res.ignored.map(esc).join(", ")}.` : ""}
         ${res.unknownA.length ? ` <span class="err">Fant ikke anlegg for: ${res.unknownA.map(esc).join(", ")}.</span>` : ""}
         ${skipped ? ` <span class="err">${skipped} ruter lå på deler av banen som er slått av under Baner.</span>` : ""} Se over hver dag og trykk «Lagre malen».`;
@@ -2369,9 +2446,8 @@ function initPlan() {
   $("#plPal").addEventListener("click", e => {
     const l = e.target.closest("[data-lag]"); if (l) { P.lag = l.dataset.lag; P.erase = false; renderPlan(); return; }
     if (e.target.id === "pl-erase") { P.erase = !P.erase; renderPlan(); return; }
-    if (e.target.id === "pl-addlag") { const v = $("#pl-newlag").value.replace(/\s+/g, " ").trim(); if (v) { P.extraLag.push(v); P.lag = v; P.erase = false; renderPlan(); } }
+    const g = e.target.closest("[data-goto]"); if (g) { e.preventDefault(); if (P.dirty) { $("#plMsg").innerHTML = `<span class="err">Lagre eller forkast endringene i malen først.</span>`; return; } show(g.dataset.goto); }
   });
-  $("#plPal").addEventListener("keydown", e => { if (e.target.id === "pl-newlag" && e.key === "Enter") { e.preventDefault(); $("#pl-addlag").click(); } });
   const grid = $("#plGrid");
   grid.addEventListener("pointerdown", e => {
     const td = e.target.closest("td.pc"); if (!td || td.classList.contains("off") || e.button) return;
@@ -2398,12 +2474,11 @@ function initPlan() {
       if (maler().some(m => m.navn === navn && m.id !== P.malId)) throw new Error(`Det finnes allerede en mal som heter «${navn}».`);
       const c = cfgDraft(), m = { id: P.malId, navn, celler: clone(P.cells) };
       c.maler = (c.maler || []).some(x => x.id === m.id) ? c.maler.map(x => x.id === m.id ? m : x) : [...(c.maler || []), m];
-      const newLag = [...new Set(Object.values(P.cells))].filter(l => !(c.lag || []).includes(l));
-      if (newLag.length) c.lag = [...new Set([...(c.lag || []), ...newLag])].sort((x, y) => x.localeCompare(y, "nb", { numeric: true }));
       await S.backend.saveCfg(c);
-      P.navn = navn; P.dirty = false; P.isNew = false; P.extraLag = [];
-      msg.innerHTML = `<span class="ok">Malen «${esc(navn)}» er lagret. Legg den inn i ukene den skal gjelde for nedenfor.</span>`;
+      P.navn = navn; P.dirty = false; P.isNew = false;
+      msg.innerHTML = `<span class="ok">Malen «${esc(navn)}» er lagret.</span> <button class="btn" type="button" id="pl-tilkopi">Neste: kopier den til uker ↓</button>`;
       renderPlan();
+      $("#pl-tilkopi").onclick = () => { $("#plCopy").scrollIntoView({ behavior: "smooth", block: "start" }); $("#pl-ufra").focus({ preventScroll: true }); };
     } catch (e) { msg.innerHTML = `<span class="err">${esc(e.message && !e.code ? e.message : errText(e))}</span>`; btn.disabled = false; }
   };
   // legg inn i uker
@@ -2419,7 +2494,7 @@ function initPlan() {
     try {
       const r = await applyWeeks(list, cells, (n, tot) => { if (n % 5 === 0) msg.textContent = `Lagrer … ${n} av ${tot}`; });
       const v = cells ? vikerI(list) : { n: 0, ex: [] };
-      msg.innerHTML = `<span class="ok">${cells ? `«${esc(P.navn)}» er lagt inn i ${weeksText(list)}.` : `Planen er fjernet fra ${weeksText(list)}.`}</span>`
+      msg.innerHTML = `<span class="ok">${cells ? `«${esc(P.navn)}» er kopiert til ${weeksText(list)}.` : `Planen er fjernet fra ${weeksText(list)}.`}</span>`
         + (v.n ? ` <span class="warn">${v.n} treningsøkter i disse ukene viker for kamper eller bookinger og faller bort den dagen</span>, for eksempel ${v.ex.join("; ")}.` : cells ? " Ingen av treningene kolliderer med kamper eller bookinger." : "");
     } catch (er) { msg.innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
     $("#pl-fjern").disabled = false; renderPlan();

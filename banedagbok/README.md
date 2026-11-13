@@ -64,47 +64,62 @@ Hvert lag kobles til lagene sine på fotball.no.
 
 ## Planlegging
 
-Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider. Det gjøres i to steg: først lager du en **mal** for en hel uke, som i treningsarket, og så legger du malen inn i ukene den skal gjelde for. Du kan ha flere maler, for eksempel én for sommersesongen og én for vinteren.
+Fanen **Planlegging** (bare for admin) er verktøyet for å sette opp standard treningstider. Siden er delt i tre nummererte steg, og stegene øverst viser hvor du er:
 
-**1. Lag en mal**
+1. **Velg eller lag en mal.** En mal er én uke med treninger, som i treningsarket, og er ikke knyttet til noen uke.
+2. **Mal inn treningene og lagre.**
+3. **Kopier malen til uker.**
+
+Du kan ha flere maler, for eksempel én for sommersesongen og én for vinteren.
+
+**1. Velg eller lag en mal**
 
 - Velg mal i lista, eller trykk **Ny tom mal**. **Lag kopi** lager en ny mal ut fra den du har oppe.
 - **Hent inn plan fra uke** fyller malen med planen som ligger i en uke fra før.
+- **Slett malen** fjerner bare malen. Ukene den er kopiert til, beholder treningene.
+
+**2. Mal inn treningene og lagre**
+
 - Hele uka vises nedover, mandag til søndag. Ukedagsknappene hopper til dagen.
   - Rutenettet har én rad per 30 minutter og én kolonne per kvarter (A–D) på hver bane, gruppert per anlegg. Baner uten kvarter vises som halvdeler eller hel bane.
   - Kryss av under «Vis baner» for hvilke baner som skal vises. Treninger på skjulte baner er likevel med i malen.
 - Velg et lag og mal rutene laget skal ha. Klikk og dra for flere ruter, og klikk på en rute med samme lag for å viske den ut.
+- Du kan bare male med lag som finnes på **Lag**-siden. Nye lag opprettes der. Har malen lag som ikke finnes der (for eksempel fra en import), får du beskjed, og de står med «?» i lista over økter.
 - Faste treninger som ikke hører til planen, vises skravert.
-- Gi malen et navn og trykk **Lagre malen**. Malen er ikke knyttet til noen uke.
-- **Slett malen** fjerner bare malen. Ukene den er lagt inn i, beholder treningene.
+- **Samme lag på flere baner samtidig** er lov, men gir et varsel under rutenettet med dag, tid og baner, og rutene får rød kant.
+- Gi malen et navn og trykk **Lagre malen**. Etterpå får du en knapp som tar deg til steg 3.
 
-**2. Legg malen inn i uker**
+**3. Kopier malen til uker**
 
 - Velg **Fra uke** og **Til uke**. Lista går fra starten av i fjor til slutten av neste år, og ukene kan gå over nyttår.
 - Under «Hvilke uker» kan du velge bare partalls- eller bare oddetallsuker, for treninger annenhver uke.
-- Trykk **Legg … inn i ukene**. Malen må være lagret først.
+- Teksten under viser hvilke uker malen blir kopiert til, for eksempel «9 uker: uke 47–53 2026 og uke 1–2 2027».
+- Trykk **Kopier … til ukene**. Malen må være lagret først.
 - Har noen av ukene allerede en plan, får du et varsel som viser hvilke uker det gjelder og hvilken mal de har. Du velger da **Overskriv** eller **Avbryt**.
 - **Fjern planen i ukene** tar bort treningene fra planen i de valgte ukene. Du får spørsmål før noe fjernes.
-- **Planlagte uker** viser hvilke uker som har hvilken mal. Uker som er endret på annen måte, står som «Egen plan».
+
+**Økter per lag og planlagte uker**
+
+Nederst på siden står to oversikter:
+
+- **Økter per lag:** antall økter og timer per uke i malen, og hvilke dager. Sammenhengende tid samme dag regnes som én økt, også om laget bruker flere baner. Lag uten økter i malen står også med, så du ser om noen mangler.
+- **Planlagte uker:** hvilke uker som har hvilken mal. Uker som er endret på annen måte, står som «Egen plan».
 
 **Hva som røres**
 
 - Bare treninger fra planen i de valgte ukene byttes ut. Andre faste treninger og enkelttreninger røres ikke.
 - Kamper, treningskamper og bookinger røres aldri, uansett om de kommer fra fotball.no, er importert eller er lagt inn for hånd.
-- En trening som kolliderer med en kamp eller booking, viker og faller bort den dagen. Etter at malen er lagt inn, får du vite hvor mange treningsøkter som viker.
+- En trening som kolliderer med en kamp eller booking, viker og faller bort den dagen. Etter kopieringen får du vite hvor mange treningsøkter som viker.
 - Like treninger i flere uker blir én trening med en liste over uker. Treningstider-fanen viser den som for eksempel «Uke 14–43 2026».
 - Avlysninger og merknader følger med når en trening får nye uker.
-- Planer som ble laget med datoperiode før, gjøres om til ukenummer første gang en mal legges inn i et av årene de gjelder. Ukene ellers i året beholder de samme treningene.
+- Planer som ble laget med datoperiode før, gjøres om til ukenummer første gang en mal kopieres til et av årene de gjelder. Ukene ellers i året beholder de samme treningene.
 
-**Import fra treningsarket:** velg Excel-fila under «Importer treningsark». Importen fyller malen som er oppe. Økter merket «annenhver» legges i malen hver uke. Skal de bare gjelde annenhver uke, lag en egen mal for dem og legg den inn med «Bare partallsuker» eller «Bare oddetallsuker». Se over hver dag og lagre malen etterpå.
+**Import fra treningsarket:** velg Excel-fila under «Importer treningsark». Importen fyller malen som er oppe. Økter merket «annenhver» legges i malen hver uke. Skal de bare gjelde annenhver uke, lag en egen mal for dem og legg den inn med «Bare partallsuker» eller «Bare oddetallsuker». Lag som ikke finnes på Lag-siden, blir ikke lagt til automatisk. Opprett dem der, eller visk dem ut i malen. Se over hver dag og lagre malen etterpå.
 
 - **Formatet:** én blokk per ukedag med kolonnene «Tid» og «BANEDEL A–D», og anleggsnavnet øverst.
 - **Sammenslåtte celler:** gir flere kvarter.
-- **«annenhver»** blir partallsuker.
 - **Lagnavn:** skrivemåter som «G 19» og «G19» slås sammen.
 - **Andre ark:** ark i et annet format, som hallen, hoppes over.
-
-Med «Kopier inn fra» kan forrige sesong brukes som utgangspunkt.
 
 Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
 
