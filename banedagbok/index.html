@@ -1701,9 +1701,9 @@ function showKamp(id) {
         <dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, k.delbaneId, 48)}<span>${esc(d ? delLabel(a, k.delbaneId) : k.baneNavn || "?")}, ${esc(a?.navn || "")}</span></span></dd>
         ${man ? (k.lag ? `<dt>Lag</dt><dd>${esc(k.lag)}</dd>` : "") + (k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : "")
           : `<dt>${tk ? "Type" : "Turnering"}</dt><dd>${tk ? `<span class="pill tkamp">Treningskamp</span>` : esc(k.turnering || "")}</dd><dt>Spillform</dt><dd>${esc(k.spillform || "")}</dd>${tk && k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : ""}${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}`}</dl>
-        ${man ? "" : tk ? `<p class="note">Treningskampen er lagt inn i banedagboken og finnes ikke på fotball.no.</p>` : `<p class="note">Kampen er hentet fra fotball.no. Tiden banen er opptatt inkluderer oppvarming.</p>`}`,
-      canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">${tk ? "Slett treningskampen" : "Slett booking"}</button>` : "");
-    if ($("#kDel")) confirmBtn($("#kDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
+        ${man ? "" : tk ? `<p class="note">Treningskampen er lagt inn i banedagboken og finnes ikke på fotball.no.</p>` : `<p class="note">Kampen er hentet fra fotball.no. Tiden banen er opptatt inkluderer oppvarming. Skal kampen flyttes, søker du om omberamming <a href="https://www.fotball.no/lov-og-reglement/skjemaer-og-kontrakter/omberamming/" target="_blank" rel="noopener">her</a>.</p>`}`,
+      canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">${tk ? "Avlys treningskampen" : "Slett booking"}</button>` : "");
+    if ($("#kDel")) confirmBtn($("#kDel"), tk ? "Bekreft: avlys" : "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); if (tk) flash(`Treningskampen ${fmtDate(k.dato)} er avlyst.`); });
     return;
   }
   const delOpts = (a?.delbaner || []).map(d => `<option value="${esc(d.id)}"${d.id === k.delbaneId ? " selected" : ""}>${esc(d.navn)}</option>`).join("");
@@ -1719,7 +1719,7 @@ function showKamp(id) {
       <label>Varighet (min)<input type="number" id="kf-var" min="15" max="600" step="5" value="${dur}"></label>
       ${man ? `<label class="wide">Merknad<input type="text" id="kf-merk" value="${esc(k.merknad || "")}"></label>` : ""}
     </form>
-    ${man ? "" : `<p class="note">Dato og avspark kommer fra fotball.no og oppdateres ved neste import. Del av banen og varighet kan du justere her.</p>`}`,
+    ${man ? "" : `<p class="note">Dato og avspark kommer fra fotball.no og oppdateres ved neste import. Del av banen og varighet justerer du i feltene over. Skal kampen flyttes, søker du om omberamming <a href="https://www.fotball.no/lov-og-reglement/skjemaer-og-kontrakter/omberamming/" target="_blank" rel="noopener">her</a>.</p>`}`,
     `<button class="btn danger rw" id="kDel">Slett</button><span class="spacer"></span><button class="btn primary rw" id="kSave">Lagre</button>`);
   delOptions($("#kf-del"), a, k.delbaneId);
   $("#kSave").onclick = async () => {
@@ -1749,7 +1749,7 @@ function treningskampDialog(id, date, minutes, delId, varighet) {
       <label class="wide" style="grid-column:1/-1">Merknad<input type="text" id="tk-merk" value="${esc(old?.merknad || "")}"></label>
       <div id="tk-coll" class="note" style="grid-column:1/-1"></div></form>
       <p class="note">Treningskamper finnes ikke på fotball.no. De vises som kamper i lilla og kan slettes av lagets trenere.</p>`,
-    `${old && canDeleteBooking(old) ? `<button class="btn danger" id="tkDel">Slett</button>` : ""}<span class="spacer"></span><button class="btn primary" id="tkSave">Lagre treningskamp</button>`);
+    `${old && canDeleteBooking(old) ? `<button class="btn danger" id="tkDel">Avlys treningskampen</button>` : ""}<span class="spacer"></span><button class="btn primary" id="tkSave">Lagre treningskamp</button>`);
   // spillform foreslår størrelse på banen: 11 → hel, 9 → halvdel, 7/5/3 → kvart
   const suggest = n => { const bId = baneOf(a, $("#tk-del").value)?.id || S.baneId; const w = n === "11" ? 12 : n === "9" ? 6 : 3;
     const d = partsOf(a, bId).find(x => x.bredde === w) || partsOf(a, bId).find(x => x.bredde === 12); return d?.id; };
@@ -1766,7 +1766,7 @@ function treningskampDialog(id, date, minutes, delId, varighet) {
       spillform: `${n} MOT ${n}`, varighet: v && v !== +(S.cfg.varighet[n] || 0) ? v : 0, anleggId: a.id, delbaneId: $("#tk-del").value, merknad: $("#tk-merk").value.trim() };
     try { await S.backend.put("kamper", id || "tk-" + uid(), k); dlg.close(); if (!id) { clearSel(); flash(`Treningskampen er lagt inn: ${esc(lag)} – ${esc(mot)}, ${fmtDate(k.dato)} ${k.tid}.`); } } catch (e) { $("#tkSave").textContent = errText(e); }
   };
-  if ($("#tkDel")) confirmBtn($("#tkDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
+  if ($("#tkDel")) confirmBtn($("#tkDel"), "Bekreft: avlys", async () => { await S.backend.del("kamper", id); dlg.close(); flash(`Treningskampen ${fmtDate(old.dato)} er avlyst.`); });
   if (!old) setTimeout(() => $("#tk-mot")?.focus(), 30);
 }
 function newBooking(date, minutes, delId, varighet) {
