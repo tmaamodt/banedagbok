@@ -927,8 +927,15 @@ let _lkSrc = null, _lkList = [];
 function lagkampList() {
   if (_lkSrc === S.lagkamper) return _lkList;
   _lkSrc = S.lagkamper; _lkList = [];
-  for (const doc of Object.values(S.lagkamper)) for (const k of doc.kamper || []) for (const v of k.vare || [])
-    _lkList.push({ ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId, klubbId: doc.klubbId || null, lagId: doc.lagId || null });
+  // Samme kamp kan komme både fra klubbens kalender og fra et lag lagt til med lag-ID (f.eks. samarbeidslag).
+  // Kampnummeret fra fotball.no er unikt, så hver kamp tas med én gang per lag. Klubb og lag-ID slås sammen.
+  const seen = new Map();
+  for (const doc of Object.values(S.lagkamper)) for (const k of doc.kamper || []) for (const v of k.vare || []) {
+    const key = (k.kampnr ? "nr:" + k.kampnr : ["", k.dato, k.tid, k.hjem, k.borte].join("|")) + "|" + v.lag, e = seen.get(key);
+    if (e) { if (doc.klubbId && !e.klubbId) { e.klubbId = doc.klubbId; e.klubb = doc.klubb || doc.klubbId; } if (doc.lagId && !e.lagId) e.lagId = doc.lagId; continue; }
+    const r = { ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId, klubbId: doc.klubbId || null, lagId: doc.lagId || null };
+    seen.set(key, r); _lkList.push(r);
+  }
   _lkList.sort((x, y) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
   return _lkList;
 }
