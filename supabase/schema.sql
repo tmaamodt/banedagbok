@@ -12,6 +12,7 @@
 --   brukere     hvem som kan logge inn og hva de får gjøre (id = e-post med små bokstaver)
 --   grupper     treningsgrupper: et treningsnavn (f.eks. «G16») koblet til lag på fotball.no
 --   lagkamper   alle kamper for klubbene som bruker banene (også bortekamper), én rad per klubb per måned
+--   gjest       treninger og bookinger på gjesteanlegg, hentet fra Hoopit, én rad per bane per måned
 --
 -- Roller (data->>'rolle' i brukere):
 --   admin         alt, inkludert brukere, anlegg, kamper og godkjenning av forespørsler
@@ -62,6 +63,12 @@ create table if not exists public.lagkamper (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.gjest (
+  id         text primary key,                          -- "h<Hoopit bane-ID>-<ÅÅÅÅ-MM>"
+  data       jsonb not null,                            -- {venueId, anleggId, baneId, maned, hentet, hendelser: [...]}; skrives av hent_kamper.py
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.brukere (
   id         text primary key check (id = lower(id)),   -- e-postadressen med små bokstaver
   data       jsonb not null,                            -- {epost, navn, rolle, lag: [...]}
@@ -84,7 +91,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper'] loop
+  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest'] loop
     execute format('drop trigger if exists %I_updated_at on public.%I', t, t);
     execute format('create trigger %I_updated_at before update on public.%I for each row execute function public.sett_updated_at()', t, t);
   end loop;
@@ -150,6 +157,31 @@ drop trigger if exists brukere_behold_admin on public.brukere;
 create trigger brukere_behold_admin before update or delete on public.brukere
   for each row execute function public.behold_en_admin();
 
+-- Gjesteanlegg er bare til visning: ingen treninger, forespørsler, bookinger eller treningskamper kan
+-- legges der. Kamper fra fotball.no (hent_kamper.py) er lov.
+create or replace function public.er_gjesteanlegg(anlegg text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.config c, jsonb_array_elements(coalesce(c.data->'anlegg', '[]'::jsonb)) a
+                 where c.id = 'oppsett' and a->>'id' = anlegg and coalesce((a->>'gjest')::boolean, false));
+$$;
+create or replace function public.sjekk_gjesteanlegg() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if public.er_gjesteanlegg(new.data->>'anleggId')
+     and not (tg_table_name = 'kamper' and coalesce(new.data->>'kilde', 'fotball.no') = 'fotball.no') then
+    raise exception 'Anlegget er et gjesteanlegg og kan bare vises, ikke endres.' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+do $$
+declare t text;
+begin
+  foreach t in array array['kamper', 'treninger', 'foresporsler'] loop
+    execute format('drop trigger if exists %I_gjesteanlegg on public.%I', t, t);
+    execute format('create trigger %I_gjesteanlegg before insert or update on public.%I for each row execute function public.sjekk_gjesteanlegg()', t, t);
+  end loop;
+end $$;
+
 -- Tilgangsregler (Row Level Security)
 alter table public.config       enable row level security;
 alter table public.kamper       enable row level security;
@@ -158,13 +190,14 @@ alter table public.foresporsler enable row level security;
 alter table public.brukere      enable row level security;
 alter table public.grupper      enable row level security;
 alter table public.lagkamper    enable row level security;
+alter table public.gjest        enable row level security;
 
 -- Fjern alle tidligere regler på tabellene, så fila kan kjøres på nytt
 do $$
 declare r record;
 begin
   for r in select policyname, tablename from pg_policies
-           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper') loop
+           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest') loop
     execute format('drop policy %I on public.%I', r.policyname, r.tablename);
   end loop;
 end $$;
@@ -203,6 +236,9 @@ create policy "admin og trener+ endrer egne" on public.grupper for all to authen
 create policy "alle kan lese" on public.lagkamper for select to anon, authenticated using (true);
 create policy "admin endrer" on public.lagkamper for all to authenticated using (public.er_admin()) with check (public.er_admin());
 
+-- gjest: alle leser. Bare hent_kamper.py (service_role) skriver.
+create policy "alle kan lese" on public.gjest for select to anon, authenticated using (true);
+
 -- foresporsler: trenere sender og ser sine egne, admin ser og behandler alle
 create policy "admin og avsender leser" on public.foresporsler for select to authenticated
   using (public.er_admin() or epost = public.min_epost());
@@ -224,7 +260,7 @@ grant insert, update, delete on public.config, public.kamper, public.treninger t
 grant select, insert, update, delete on public.foresporsler, public.brukere to authenticated;
 -- anon får lese, men tilgangsreglene over gir dem ingen rader
 grant select on public.foresporsler, public.brukere to anon;
-grant select on public.grupper, public.lagkamper to anon, authenticated;
+grant select on public.grupper, public.lagkamper, public.gjest to anon, authenticated;
 grant insert, update, delete on public.grupper, public.lagkamper to authenticated;
 
 -- Sanntid: åpne sider oppdateres når noen andre endrer noe
@@ -232,7 +268,7 @@ do $$
 declare t text;
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper'] loop
+    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest'] loop
       if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
         execute format('alter publication supabase_realtime add table public.%I', t);
       end if;

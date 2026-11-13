@@ -124,6 +124,31 @@ Nederst på siden står to oversikter:
 
 Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
 
+## Gjesteanlegg (Hoopit)
+
+Noen samarbeidslag trener på anlegg der en annen klubb fører banedagboken i Hoopit. Slike anlegg kan legges inn som **gjesteanlegg**. De vises i ukevisningen som de andre anleggene, med «(gjest)» etter navnet, men er bare til visning:
+
+- Ingen kan legge inn treninger, bookinger, treningskamper eller forespørsler der, heller ikke admin. Databasen stopper det også.
+- Treninger og andre aktiviteter hentes hver natt fra klubbens offentlige kalender i Hoopit. De vises skravert, og et klikk viser tid, bane, gruppe og kilde.
+- Kampene hentes fra fotball.no, som for de andre anleggene. Kampene som Hoopit selv har hentet fra fotball.no, hoppes over, så ingen kamper vises to ganger.
+- Samme økt registrert for flere grupper i Hoopit (for eksempel J15 og J17) vises som én blokk med begge gruppene.
+- Hoopit-hendelser som overlapper, legges side om side. Det gis ikke kollisjonsvarsel for dem, siden det er den andre klubbens plan.
+- Gjesteanlegg er ikke med i Planlegging, og kan ikke velges i skjemaene for treningstider og forespørsler.
+
+**Aursmoen (Aurskog-Finstadbru SK)** er satt opp som gjesteanlegg med `supabase/gjesteanlegg_aursmoen.sql`:
+
+| Anlegg | Bane | Hoopit bane-ID | Navn på fotball.no |
+| --- | --- | --- | --- |
+| Aursmoen (fotball.no 11991) | Kunstgress (9er A/B, 7er A–D) | 2263 | Aursmoen kunstgress … |
+| | KG 2 (9er, 7er A/B) | 2264 | Aursmoen KG 2 9er, 7er A/B |
+| | 5er | 2265 | Aursmoen mini kg |
+| | Mini 3er-baner | 2558 | – |
+| Aursmoen Sletta (fotball.no 17513) | 9er, 7er A, 7er B | 2847, 2848, 2849 | Aursmoen Sletta 9er, 7er A/B |
+
+**Nytt gjesteanlegg:** legg til anlegget under **Baner** med anleggs-ID fra fotball.no. Kryss av for «Gjesteanlegg» og lim inn lenken til den offentlige Hoopit-kalenderen. Legg deretter inn Hoopit bane-ID på hver bane. Bane-ID-ene står i lenken til kalenderen (`venueId=`) når du velger én bane der. Neste natt hentes treningene.
+
+Hoopit har ikke et offisielt, dokumentert grensesnitt for dette. Banedagboken bruker det samme som Hoopit sin egen offentlige kalenderside. Endrer Hoopit det, kan hentingen slutte å virke. Da står feilen i loggen under Actions, og resten av hentingen går som før.
+
 ## Oppsett med Supabase
 
 Regn med rundt en halvtime. Du trenger en Supabase-konto (gratis), tilgang til dette GitHub-repoet og en konto hos Netlify eller Cloudflare (gratis) for publisering.
@@ -132,7 +157,7 @@ Regn med rundt en halvtime. Du trenger en Supabase-konto (gratis), tilgang til d
 
 1. Gå til [supabase.com](https://supabase.com) og velg **New project**. Velg region **Stockholm (eu-north-1)**, så ligger dataene i EU.
 2. Åpne **SQL Editor**, lim inn hele `supabase/schema.sql` og trykk **Run**.
-3. Gjør det samme med `supabase/seed.sql`. Den legger inn Høland idrettsanlegg og Bjørkelangen kunstgress med delbaner.
+3. Gjør det samme med `supabase/seed.sql`. Den legger inn Høland idrettsanlegg og Bjørkelangen kunstgress med delbaner. Kjør også `supabase/gjesteanlegg_aursmoen.sql` hvis Aursmoen skal være med som gjesteanlegg.
 4. Legg inn den første admin. Bruk små bokstaver i e-postadressen, og kjør i SQL Editor:
    ```sql
    insert into public.brukere (id, data) values
@@ -159,6 +184,7 @@ Skriptet:
 - henter Excel-eksporten for hvert anlegg som har fotball.no-ID
 - legger inn nye kamper og oppdaterer flyttede kamper
 - fjerner kamper som er strøket i perioden
+- henter treninger og aktiviteter for gjesteanlegg fra Hoopit (se over)
 
 Manuelle bookinger og treninger rører det aldri. Det samme gjelder delbane og varighet som er justert for hånd. Svikter nedlastingen for ett anlegg, blir ingenting slettet der.
 

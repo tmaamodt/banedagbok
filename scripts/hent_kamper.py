@@ -21,6 +21,9 @@ Hva skriptet gjør:
   6. Henter alle kampene (også bortekamper) for klubbene i oppsettet (config.klubber) og lagrer
      dem samlet per klubb og måned i tabellen lagkamper. Brukes av treningsgruppene og til å
      se om et lag har kamp et annet sted i treningstiden.
+  7. Henter treninger og bookinger for gjesteanlegg fra Hoopit (anlegg med gjest = true og en
+     Hoopit-kalender, baner med Hoopit-bane-ID) og lagrer dem per bane og måned i tabellen gjest.
+     Kampene som Hoopit har hentet fra fotball.no, hoppes over: de kommer fra fotball.no i punkt 2.
 """
 from __future__ import annotations
 
@@ -212,6 +215,20 @@ def normaliser_anlegg(a: dict) -> dict:
     return a
 
 
+def velg_bane(anlegg: dict, banenavn: str) -> dict | None:
+    """Banen der et kjent fotball.no-navn, uten størrelse og del til slutt, er starten på banenavnet.
+    F.eks. går «Aursmoen KG 2 5er B» til banen som har «Aursmoen KG 2 9er». Lengste treff vinner."""
+    n, best, lengde = banenavn.strip().lower(), None, 0
+    for d in anlegg.get("delbaner", []):
+        for al in d.get("alias", []):
+            al = al.strip().lower()
+            # sammenlign uten siste ord (størrelse og del, f.eks. «9er», «7er A»)
+            stamme = re.sub(r"\s+(\d+er|kg)(\s+[a-d]\d?)?$", "", al)
+            if stamme and n.startswith(stamme) and len(stamme) > lengde:
+                best, lengde = d.get("baneId"), len(stamme)
+    return next((b for b in anlegg.get("baner", []) if b["id"] == best), None)
+
+
 def finn_delbane(cfg: dict, anlegg: dict, banenavn: str) -> tuple[dict, dict, bool]:
     """Returnerer (anlegg, delbane, oppsett_endret). Søker etter koblingen i alle anlegg.
     Ukjente baner kobles til riktig del av anleggets første bane som er knyttet til fotball.no,
@@ -222,7 +239,7 @@ def finn_delbane(cfg: dict, anlegg: dict, banenavn: str) -> tuple[dict, dict, bo
             if any(x.strip().lower() == n for x in d.get("alias", [])):
                 return a, d, False
     normaliser_anlegg(anlegg)
-    bane = next((b for b in anlegg["baner"] if b.get("kobling") == "fotball.no"), anlegg["baner"][0])
+    bane = velg_bane(anlegg, banenavn) or next((b for b in anlegg["baner"] if b.get("kobling") == "fotball.no"), anlegg["baner"][0])
     g = gjett_delbane(banenavn)
     deler = [x for x in anlegg["delbaner"] if x["baneId"] == bane["id"]]
     d = next((x for x in deler if x["start"] == g["start"] and x["bredde"] == g["bredde"] and x.get("aktiv", True)), None) \
@@ -324,6 +341,7 @@ def main() -> int:
         print("Lagret.")
 
     feil += hent_lagkamper(db, cfg, fra, til, args.dry)
+    feil += hent_hoopit(db, cfg, fra, til, args.dry)
     return 1 if feil else 0
 
 
@@ -403,6 +421,82 @@ def hent_lagkamper(db: Supabase, cfg: dict, fra: dt.date, til: dt.date, dry: boo
     if rader and not dry:
         db.upsert("lagkamper", rader)
         print(f"Lagkamper lagret: {len(rader)} klubb-måneder.")
+    return feil
+
+
+# ---------------------------------------------------------------- gjesteanlegg fra Hoopit
+HOOPIT_API = "https://api.hoopit.io/web/organizations/public-calendars"
+HOOPIT_TYPE = {"training": "trening", "match": "kamp"}
+
+
+def hoopit_hendelser(kalender: str, venue: int, fra: dt.date, til: dt.date) -> list[dict]:
+    """Hendelser for én bane i Hoopit sin offentlige kalender. Til-datoen tas med."""
+    qs = urllib.parse.urlencode({"from_date": fra.isoformat(), "to_date": (til + dt.timedelta(days=1)).isoformat()})
+    req = urllib.request.Request(f"{HOOPIT_API}/{urllib.parse.quote(kalender)}/venues/{int(venue)}/?{qs}",
+                                 headers={"User-Agent": USER_AGENT, "Accept": "application/json; version=3"})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                return json.loads(r.read())
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == 3:
+                raise
+            print(f"  Hoopit svarte ikke ({e}), prøver igjen …")
+            time.sleep(2 ** (attempt + 1))
+    raise RuntimeError("unreachable")
+
+
+def hoopit_rad(e: dict) -> dict | None:
+    """Gjør en Hoopit-hendelse om til det banedagboken trenger. Kamper fra fotball.no hoppes over."""
+    if e.get("import_source") == "fotballdata" or e.get("has_fotballdata_match"):
+        return None
+    start, slutt = e.get("start") or "", e.get("end") or ""
+    if len(start) < 16:
+        return None
+    sek = e.get("section") or {}
+    return {"id": e.get("id"), "dato": start[:10], "fra": start[11:16],
+            "til": slutt[11:16] if slutt[:10] == start[:10] and len(slutt) >= 16 else "23:59",
+            "tittel": (e.get("title") or "").strip(), "gruppe": ((e.get("group") or {}).get("name") or "").strip(),
+            "type": HOOPIT_TYPE.get(e.get("event_type"), "annet"), "del": sek.get("part"), "seksjon": sek.get("name") or "",
+            "avlyst": bool(e.get("cancelled"))}
+
+
+def hent_hoopit(db: Supabase, cfg: dict, fra: dt.date, til: dt.date, dry: bool) -> int:
+    baner = [(a, b) for a in cfg.get("anlegg", []) if a.get("gjest") and (a.get("hoopit") or {}).get("kalender")
+             for b in a.get("baner", []) if str(b.get("hoopit") or "").isdigit()]
+    if not baner:
+        return 0
+    fra_m, til_m = fra.replace(day=1), (til.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    maneder, d = [], fra_m
+    while d <= til_m:
+        maneder.append(d.strftime("%Y-%m"))
+        d = (d.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+    hentet = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    rader, feil = [], 0
+    for a, b in baner:
+        venue = int(b["hoopit"])
+        try:
+            hendelser = hoopit_hendelser(a["hoopit"]["kalender"], venue, fra_m, til_m)
+        except Exception as e:  # noqa: BLE001 – én bane som feiler skal ikke stoppe de andre
+            print(f"- Hoopit {a['navn']} · {b['navn']} ({venue}): FEIL ved henting: {e}")
+            feil += 1
+            continue
+        per_mnd = {m: [] for m in maneder}
+        hoppet = 0
+        for e in hendelser:
+            r = hoopit_rad(e)
+            if r is None:
+                hoppet += 1
+            elif r["dato"][:7] in per_mnd:
+                per_mnd[r["dato"][:7]].append(r)
+        print(f"- Hoopit {a['navn']} · {b['navn']} ({venue}): {sum(map(len, per_mnd.values()))} hendelser, "
+              f"{hoppet} kamper fra fotball.no hoppet over")
+        rader += [{"id": f"h{venue}-{m}", "data": {"kilde": "hoopit", "venueId": venue, "anleggId": a["id"], "baneId": b["id"],
+                                                   "maned": m, "hentet": hentet, "hendelser": sorted(v, key=lambda x: (x["dato"], x["fra"]))}}
+                  for m, v in per_mnd.items()]
+    if rader and not dry:
+        db.upsert("gjest", rader)
+        print(f"Gjesteanlegg lagret: {len(rader)} bane-måneder.")
     return feil
 
 

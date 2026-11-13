@@ -111,6 +111,10 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .blk.trening { background: var(--train-soft); border-color: var(--train); color: var(--ink) }
 .blk.trening .k { color: var(--train) }
 .blk.booking { background: var(--pitch-soft); border-color: var(--pitch); color: var(--ink) }
+.blk.gjest { background: repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--line) 6px 7px); border-color: var(--muted); color: var(--ink) }
+.blk.gjest .k { color: var(--muted) }
+.blk.gjest.gkamp { border-color: var(--match) }
+.gjestinfo { border: 1px dashed var(--muted); border-radius: 10px; padding: 8px 12px; font-size: 14px; background: var(--surface) }
 .blk.tkamp { background: var(--friendly-soft); border-color: var(--friendly); color: var(--ink) }
 .blk.tkamp .k { color: var(--friendly) }
 .blk.enkelt { border-style: dashed solid }
@@ -609,6 +613,8 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <form class="form" id="aEdit" onsubmit="return false">
           <label>Navn på anlegget<input type="text" id="aEdit-navn" class="rw"></label>
           <label>Anleggs-ID på fotball.no<input type="text" id="aEdit-fiks" class="rw" inputmode="numeric" placeholder="tom = ingen kamper hentes"></label>
+          <label class="check" style="grid-column:1/-1"><input type="checkbox" id="aEdit-gjest" class="rw"> Gjesteanlegg: bare visning. Treninger og bookinger hentes fra Hoopit, og ingen kan legge inn noe her.</label>
+          <label data-gjest style="grid-column:1/-1">Offentlig Hoopit-kalender (lenke)<input type="url" id="aEdit-hoopit" class="rw" placeholder="https://calendar.hoopit.io/public-calendar/…"></label>
         </form>
         <p class="note">Hver fysisk bane kan deles i halvdeler og kvarter. Kryss av for delene som faktisk finnes, for eksempel ut fra hvor mange mål dere har. Bare disse kan velges for treninger og bookinger. To aktiviteter kolliderer når de bruker samme del av samme bane samtidig. En bane er enten <b>knyttet til fotball.no</b>, og får kamper derfra, eller <b>frittstående</b>, for eksempel en treningsbane.</p>
         <div id="baneCards" style="display:grid;gap:12px"></div>
@@ -664,7 +670,7 @@ const DAY_START = 8 * 60, DAY_END = 23 * 60;
 const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7": 75, "5": 60, "3": 45 } };
 
 // ---------- state ----------
-const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, anleggId: null, baneId: null, week: monday(new Date()),
+const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, gjest: {}, anleggId: null, baneId: null, week: monday(new Date()),
   view: "uke", day: null, ro: true, backend: null, loaded: false, editTrain: null,
   me: null,          // innlogget bruker: {epost, navn, rolle, lag}
   user: null,        // Supabase-innlogging
@@ -673,7 +679,7 @@ const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}
 try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; S.showLK = !!u.showLK; S.lagSel = u.lagSel || null; } } catch (e) {}
 let SB = null; // Supabase-klient når siden er koblet til Supabase
 const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs, showLK: S.showLK, lagSel: S.lagSel })); } catch (e) {} };
-const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper"];
+const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest"];
 
 // ---------- roller ----------
 const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener" };
@@ -876,8 +882,19 @@ const defaultPart = (a, bId) => { const ps = partsOf(a, bId || a?.baner[0]?.id);
 // Del med denne plasseringen på en bane (standard: første bane knyttet til fotball.no)
 const delbaneByZone = (a, z, bId) => (a?.delbaner || []).find(d => d.baneId === (bId || linkedBane(a)?.id) && d.start === z.start && d.bredde === z.bredde);
 // Hvor en fotball.no-bane som ikke er koblet ennå, havner: riktig del av den knyttede banen hvis den er aktiv, ellers hele banen
+// Gjesteanlegg: bare visning. Treninger og bookinger kommer fra Hoopit, kamper fra fotball.no.
+const erGjest = a => !!a?.gjest;
+// Banen der et kjent fotball.no-navn (uten størrelse og del til slutt) er starten på navnet, f.eks. «Aursmoen KG 2 5er B»
+function baneByName(a, name) {
+  const n = String(name || "").trim().toLowerCase(); let best = null, len = 0;
+  for (const d of a?.delbaner || []) for (const al of d.alias || []) {
+    const st = al.trim().toLowerCase().replace(/\s+(\d+er|kg)(\s+[a-d]\d?)?$/, "");
+    if (st && n.startsWith(st) && st.length > len) { best = d.baneId; len = st.length; }
+  }
+  return baneById(a, best);
+}
 function guessPart(a, name) {
-  const b = linkedBane(a); if (!b) return null;
+  const b = baneByName(a, name) || linkedBane(a); if (!b) return null;
   const d = delbaneByZone(a, guessDelbane(name), b.id);
   return d && d.aktiv !== false ? d : delbaneByZone(a, { start: 0, bredde: 12 }, b.id);
 }
@@ -927,6 +944,7 @@ function occurrences(weekStart, aId, bId) {
       label: manual ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
       sub: manual ? (showMerknad() ? (k.merknad || "") : "") : tk ? "Treningskamp" : (k.turnering || ""), src: k });
   }
+  if (erGjest(A)) out.push(...gjestItems(A, days, bId, out));
   for (const [id, r] of Object.entries(S.foresporsler)) {
     if (r.status !== "ny" || r.anleggId !== aId || !S.me || !onBane(r.delbaneId)) continue;
     if (!isAdmin() && r.epost !== S.me.epost) continue;
@@ -937,6 +955,44 @@ function occurrences(weekStart, aId, bId) {
     }
   }
   return out;
+}
+// Hoopit-del → del av banen: null = hele, A/B = halvdeler, A1/A2/B1/B2 = kvarter
+const HOOPIT_ZONE = { A: [0, 6], B: [6, 6], A1: [0, 3], A2: [3, 3], B1: [6, 3], B2: [9, 3] };
+function gjestDel(a, bId, part) {
+  const z = HOOPIT_ZONE[part];
+  const d = z && delbaneByZone(a, { start: z[0], bredde: z[1] }, bId);
+  return (d || delbaneByZone(a, { start: 0, bredde: 12 }, bId) || partsOf(a, bId, true)[0])?.id;
+}
+function gjestItems(a, days, bId, andre) {
+  const out = [], first = days[0], last = days[days.length - 1];
+  // kamper fra fotball.no på samme bane og samme tid finnes allerede: ikke vis Hoopit-kampen i tillegg
+  const fb = new Set(andre.filter(x => x.type === "kamp").map(x => `${x.date}|${x.start}|${baneOf(a, x.del)?.id}`));
+  for (const [docId, doc] of Object.entries(S.gjest)) {
+    if (doc.anleggId !== a.id || (bId && doc.baneId !== bId) || !baneById(a, doc.baneId)) continue;
+    if (doc.maned < first.slice(0, 7) || doc.maned > last.slice(0, 7)) continue;
+    for (const e of doc.hendelser || []) {
+      if (!days.includes(e.dato)) continue;
+      const s = toMin(e.fra), en = toMin(e.til); if (s == null || en == null) continue;
+      if (e.type === "kamp" && fb.has(`${e.dato}|${s}|${doc.baneId}`)) continue;
+      // samme økt registrert for flere grupper (f.eks. J15 og J17): vis én blokk med begge gruppene
+      const lik = out.find(x => x.date === e.dato && x.start === s && x.src.til === e.til && x.src.del === e.del && x.src.docId === docId && x.label === (e.tittel || e.gruppe || "Hoopit"));
+      if (lik) { if (e.gruppe && !lik.grupper.includes(e.gruppe)) { lik.grupper.push(e.gruppe); lik.sub = [lik.gkamp ? "Kamp" : "", lik.grupper.join(", ")].filter(Boolean).join(" · "); } continue; }
+      out.push({ grupper: e.gruppe ? [e.gruppe] : [], type: "gjest", gkamp: e.type === "kamp", id: `${docId}#${e.id}`, date: e.dato, start: s, end: Math.max(en, s + 15), del: gjestDel(a, doc.baneId, e.del),
+        avlyst: !!e.avlyst, label: e.tittel || e.gruppe || "Hoopit", sub: [e.type === "kamp" ? "Kamp" : "", e.gruppe && e.gruppe !== e.tittel ? e.gruppe : ""].filter(Boolean).join(" · "), src: { ...e, docId, anleggId: a.id } });
+    }
+  }
+  return out;
+}
+const gjestHentet = a => Object.values(S.gjest).filter(d => d.anleggId === a.id).map(d => d.hentet || "").sort().pop() || "";
+function showGjest(id) {
+  const [docId, eid] = id.split("#"), doc = S.gjest[docId], e = doc?.hendelser?.find(x => String(x.id) === eid); if (!doc || !e) return;
+  const a = anlegg(doc.anleggId), d = delbane(a, gjestDel(a, doc.baneId, e.del));
+  const grupper = [...new Set(doc.hendelser.filter(x => x.dato === e.dato && x.fra === e.fra && x.til === e.til && x.del === e.del && x.tittel === e.tittel).map(x => x.gruppe).filter(Boolean))];
+  openDlg(e.tittel || "Hoopit", `<dl class="kv"><dt>Når</dt><dd class="num">${fmtDate(e.dato)} ${e.dato.slice(0, 4)}, ${esc(e.fra)}–${esc(e.til)}${e.avlyst ? " (avlyst)" : ""}</dd>
+    <dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, d?.id, 48)}<span>${esc(delLabel(a, d?.id))}, ${esc(a?.navn || "")}</span></span></dd>
+    ${grupper.length ? `<dt>${grupper.length > 1 ? "Grupper" : "Gruppe"}</dt><dd>${grupper.map(esc).join(", ")}</dd>` : ""}<dt>Type</dt><dd>${e.type === "kamp" ? "Kamp" : e.type === "trening" ? "Trening" : "Aktivitet"}</dd>
+    <dt>Kilde</dt><dd>Hoopit${a?.hoopit?.klubb ? ` (${esc(a.hoopit.klubb)})` : ""}. Hentes hver natt og kan ikke endres her.</dd></dl>`,
+    `<button class="btn" type="button" onclick="this.closest('dialog').close()">Lukk</button>`);
 }
 function zoneOf(a, delId) { const d = delbane(a, delId); return d ? [d.start, d.start + d.bredde] : [0, 12]; }
 // ---------- treningsgrupper og lagenes kamper ----------
@@ -1106,6 +1162,8 @@ function markConflicts(items, a) {
     if (x.start >= y.end || y.start >= x.end) continue;
     const [xs, xe] = zoneOf(a, x.del), [ys, ye] = zoneOf(a, y.del);
     if (xs >= ye || ys >= xe) continue;
+    // hendelser fra Hoopit: legg dem side om side, men ikke varsle (det er en annen klubbs banedagbok)
+    if (x.type === "gjest" || y.type === "gjest") { (x.mates ||= []).push(y); (y.mates ||= []).push(x); continue; }
     if (yields(x, y) || yields(y, x)) { const [t, k] = yields(x, y) ? [x, y] : [y, x]; t.viker = k; (pairs.viker ||= []).push([t, k]); }
     else { x.konflikt = y.konflikt = true; pairs.push([x, y]); }
     (x.mates ||= []).push(y); (y.mates ||= []).push(x);
@@ -1127,9 +1185,9 @@ function renderStatus() {
   setStatus(`<b class="num">${nK}</b> kamper/bookinger · <b class="num">${nT}</b> faste treningstider · ${where}${!S.canWrite ? " · <b>Bare lesetilgang</b>" : ""}`);
   renderAuth(); renderViewAs();
 }
-function anleggOptions(sel, withAll) {
+function anleggOptions(sel, withAll, utenGjest) {
   const v = sel.value;
-  sel.innerHTML = (withAll ? `<option value="">Alle anlegg</option>` : "") + S.cfg.anlegg.map(a => `<option value="${esc(a.id)}">${esc(a.navn)}</option>`).join("");
+  sel.innerHTML = (withAll ? `<option value="">Alle anlegg</option>` : "") + S.cfg.anlegg.filter(a => !utenGjest || !erGjest(a)).map(a => `<option value="${esc(a.id)}">${esc(a.navn)}${erGjest(a) ? " (gjest)" : ""}</option>`).join("");
   if ([...sel.options].some(o => o.value === v)) sel.value = v;
 }
 function delOptions(sel, a, selected) {
@@ -1144,9 +1202,10 @@ function delOptions(sel, a, selected) {
 }
 function baneSelOptions() {
   const sel = $("#anleggSel");
+  const g = a => erGjest(a) ? " (gjest)" : "";
   sel.innerHTML = S.cfg.anlegg.map(a => a.baner.length > 1
-    ? `<optgroup label="${esc(a.navn)}">${a.baner.map(b => `<option value="${esc(a.id + "|" + b.id)}">${esc(a.navn)} · ${esc(b.navn)}</option>`).join("")}</optgroup>`
-    : `<option value="${esc(a.id + "|" + a.baner[0].id)}">${esc(a.navn)}</option>`).join("");
+    ? `<optgroup label="${esc(a.navn + g(a))}">${a.baner.map(b => `<option value="${esc(a.id + "|" + b.id)}">${esc(a.navn)} · ${esc(b.navn)}${g(a)}</option>`).join("")}</optgroup>`
+    : `<option value="${esc(a.id + "|" + a.baner[0].id)}">${esc(a.navn)}${g(a)}</option>`).join("");
   if (S.anleggId && S.baneId) sel.value = S.anleggId + "|" + S.baneId;
 }
 // Velger for del av banen: klikk på et kvarter i tegningen, eller velg hele / halvdel / kvarter i knapperaden.
@@ -1185,17 +1244,17 @@ function renderAll() {
   $("#clubName").textContent = S.cfg.klubb ? S.cfg.klubb + " · Banedagbok" : "Banedagbok";
   $("#anleggTitle").textContent = a ? a.navn + (multiBane(a) ? " · " + (curBane()?.navn || "") : "") : "Banedagbok";
   baneSelOptions();
-  for (const id of ["#tf-anlegg", "#dl-anlegg", "#oA"]) anleggOptions($(id));
+  anleggOptions($("#tf-anlegg"), false, true); for (const id of ["#dl-anlegg", "#oA"]) anleggOptions($(id));
   anleggOptions($("#tlFilter"), true); anleggOptions($("#kFilterA"), true);
   if (a) { if (!$("#oA").value) $("#oA").value = a.id; if (!$("#dl-anlegg").value) $("#dl-anlegg").value = a.id; }
-  if (!S.editTrain) { if (a && !$("#tf-anlegg").dataset.touched) $("#tf-anlegg").value = a.id; }
+  if (!S.editTrain) { if (a && !erGjest(a) && !$("#tf-anlegg").dataset.touched) $("#tf-anlegg").value = a.id; }
   delOptions($("#tf-del"), anlegg($("#tf-anlegg").value), $("#tf-del").value);
   computeMe();
   $("#lagList").innerHTML = (S.cfg.lag || []).map(l => `<option value="${esc(l)}"></option>`).join("");
   renderStatus(); applyRoleUI(); renderWeek(); renderSeason(); renderTrainList(); renderKampList(); renderImport(); renderOppsett();
   renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); applyRo();
 }
-function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").forEach(d => d.classList.toggle("addable", isAdmin() || canRequest())); }
+function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").forEach(d => d.classList.toggle("addable", !erGjest(curA()) && (isAdmin() || canRequest()))); }
 function tabAllowed(v) {
   const f = $(`nav.tabs [data-view="${v}"]`)?.dataset.for;
   return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin());
@@ -1203,11 +1262,12 @@ function tabAllowed(v) {
 function applyRoleUI() {
   $$("nav.tabs button").forEach(b => { b.hidden = !tabAllowed(b.dataset.view); });
   if (!tabAllowed(S.view)) show("uke");
-  $("#addTrain").hidden = !canCreateTraining("enkelt");
-  $("#addBooking").hidden = !isAdmin();
-  $("#addTK").hidden = !canCreateTK();
-  $("#addRequest").hidden = !canRequest();
-  $("#ukeNoteClick").textContent = isAdmin() ? ", og på en ledig flate for å legge inn en enkeltbooking" : isPluss() ? ", og på en ledig flate for å legge inn en enkelttrening" : canRequest() ? ", og på en ledig flate for å søke om tid" : "";
+  const gj = erGjest(curA()); // gjesteanlegg: bare visning
+  $("#addTrain").hidden = gj || !canCreateTraining("enkelt");
+  $("#addBooking").hidden = gj || !isAdmin();
+  $("#addTK").hidden = gj || !canCreateTK();
+  $("#addRequest").hidden = gj || !canRequest();
+  $("#ukeNoteClick").textContent = gj ? "" : isAdmin() ? ", og på en ledig flate for å legge inn en enkeltbooking" : isPluss() ? ", og på en ledig flate for å legge inn en enkelttrening" : canRequest() ? ", og på en ledig flate for å søke om tid" : "";
   // treningsskjema
   const pluss = rolle() === "trener_pluss";
   $("#tfPanel").hidden = !canCreateTraining("enkelt") && !S.editTrain;
@@ -1263,14 +1323,14 @@ function renderWeek() {
   html += `<div class="times" style="height:${H * hpx}px">${[...Array(H + 1)].map((_, h) => h === 0 ? "" : `<span style="top:${h * hpx}px">${pad(8 + h)}</span>`).join("")}</div>`;
   for (const i of idx) {
     const ds = ymd(addDays(ws, i));
-    html += `<div class="day${isAdmin() || canRequest() ? " addable" : ""}" data-date="${ds}" style="height:${H * hpx}px">`;
+    html += `<div class="day${!erGjest(a) && (isAdmin() || canRequest()) ? " addable" : ""}" data-date="${ds}" style="height:${H * hpx}px">`;
     for (const it of items.filter(x => x.date === ds).sort((x, y) => x.start - y.start)) {
       let [zs, ze] = zoneOf(a, it.del);
       if (it.lanes > 1) { const w = (ze - zs) / it.lanes; zs = zs + w * it.lane; ze = zs + w; }
       const top = Math.max(0, (it.start - DAY_START) / 60 * hpx), bot = Math.min(H * hpx, (it.end - DAY_START) / 60 * hpx);
       const d = delbane(a, it.del);
       const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}${it.viker ? " · viker for " + it.viker.label : ""}${it.borte ? ` · ${it.borte.status === "borte" ? "trolig ledig" : "delvis borte"}: ` + it.borte.hits.map(h => `${h.lag} ${h.hjemme ? "hjemme" : "borte"} kl. ${h.tid}`).join(", ") : ""}`;
-      html += `<button class="blk ${it.type}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}${it.borte ? " " + it.borte.status : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
+      html += `<button class="blk ${it.type}${it.gkamp ? " gkamp" : ""}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}${it.borte ? " " + it.borte.status : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
         style="top:${top + 1}px;height:${Math.max(18, bot - top - 2)}px;left:calc(${zs / 12 * 100}% + 2px);width:calc(${(ze - zs) / 12 * 100}% - 4px)" title="${esc(title)}">
         <span class="k">${fromMin(it.start)} ${esc(d ? d.navn : "")}</span><span class="l">${esc(it.label)}</span>${it.borte ? `<span class="s" style="color:var(--pitch);font-weight:600">${it.borte.status === "borte" ? "Trolig ledig" : "Delvis borte"}</span>` : ""}${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
     }
@@ -1291,7 +1351,9 @@ function renderWeek() {
   }
   const vk = [...new Map((pairs.viker || []).map(([t, k]) => [t, [t, k]])).values()]; // én linje per trening, selv om den viker for flere kamper
   const vikerHtml = vk.length ? `<div class="alert info"><b>Kamp eller booking går foran:</b> ${vk.length === 1 ? "én trening faller" : vk.length + " treninger faller"} bort denne uka. ${vk.slice(0, 6).map(([t, k]) => `${fmtDate(t.date)} ${esc(t.label)} ${fromMin(t.start)} (${esc(k.label)})`).join("; ")}${vk.length > 6 ? " …" : ""}</div>` : "";
-  alerts.innerHTML = vikerHtml + (pairs.length ? pairs.map(([x, y]) => {
+  const gh = erGjest(a) ? gjestHentet(a) : "";
+  const gjestHtml = erGjest(a) ? `<div class="gjestinfo"><b>Gjesteanlegg – bare visning.</b> Treninger og bookinger hentes fra Hoopit${a.hoopit?.klubb ? ` (${esc(a.hoopit.klubb)})` : ""} hver natt, og kamper fra fotball.no. Ingen kan endre noe her.${gh ? ` <span class="muted">Sist hentet ${fmtDate(gh.slice(0, 10))} kl. ${new Date(gh).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}.</span>` : ` <span class="muted">Ikke hentet ennå.</span>`}</div>` : "";
+  alerts.innerHTML = gjestHtml + vikerHtml + (pairs.length ? pairs.map(([x, y]) => {
     const dx = delbane(a, x.del), dy = delbane(a, y.del);
     return `<div class="alert"><b>Kollisjon ${fmtDate(x.date)}:</b> ${esc(x.label)} (${fromMin(x.start)}–${fromMin(x.end)}, ${esc(dx?.navn || "?")}) og ${esc(y.label)} (${fromMin(y.start)}–${fromMin(y.end)}, ${esc(dy?.navn || "?")}) bruker samme del av banen.</div>`;
   }).join("") : (items.length ? "" : `<div class="note">Ingen kamper eller treninger på ${esc(a.navn)}${multiBane(a) ? " · " + esc(bane?.navn || "") : ""} denne uka.</div>`));
@@ -1320,6 +1382,10 @@ function weekActivity(aId, year, bId) {
   for (const k of Object.values(S.kamper)) {
     if (k.anleggId !== aId || (bId && baneOf(anlegg(aId), k.delbaneId)?.id !== bId)) continue; const key = ymd(monday(parseYmd(k.dato)));
     const r = res.get(key); if (r) k.kilde === "manuell" ? r.b++ : r.k++;
+  }
+  for (const doc of Object.values(S.gjest)) {
+    if (doc.anleggId !== aId || (bId && doc.baneId !== bId)) continue;
+    for (const e of doc.hendelser || []) { if (e.avlyst || e.type === "kamp") continue; const r = res.get(ymd(monday(parseYmd(e.dato)))); if (r) r.t++; }
   }
   for (const t of Object.values(S.treninger)) {
     if (t.anleggId !== aId || (bId && baneOf(anlegg(aId), t.delbaneId)?.id !== bId)) continue;
@@ -1388,7 +1454,8 @@ function renderOppsett() {
   if (document.activeElement !== $("#cf-klubb")) $("#cf-klubb").value = S.cfg.klubb || "";
   $("#vf").innerHTML = ["11", "9", "7", "5", "3"].map(k => `<label>${k}er (min)<input type="number" min="15" max="300" step="5" data-vk="${k}" id="vk-${k}" value="${esc(S.cfg.varighet[k] ?? "")}" class="rw"></label>`).join("");
   const a = anlegg($("#oA").value);
-  for (const [id, v] of [["#aEdit-navn", a?.navn], ["#aEdit-fiks", a?.fiksId]]) if (document.activeElement !== $(id)) $(id).value = v || "";
+  for (const [id, v] of [["#aEdit-navn", a?.navn], ["#aEdit-fiks", a?.fiksId], ["#aEdit-hoopit", a?.hoopit?.kalender ? `https://calendar.hoopit.io/public-calendar/${a.hoopit.kalender}` : ""]]) if (document.activeElement !== $(id)) $(id).value = v || "";
+  $("#aEdit-gjest").checked = erGjest(a); $$("#aEdit [data-gjest]").forEach(el => { el.hidden = !erGjest(a); });
   if (!a) { $("#baneCards").innerHTML = `<p class="note">Legg til et anlegg først.</p>`; $("#mList").innerHTML = ""; return; }
   const usage = baneUsage(a);
   $("#baneCards").innerHTML = a.baner.map(b => {
@@ -1398,6 +1465,7 @@ function renderOppsett() {
       <div class="head"><input type="text" class="rw" data-bf="navn" id="bn-${esc(b.id)}" value="${esc(b.navn)}" aria-label="Navn på banen">
         <select class="rw" data-bf="underlag" aria-label="Underlag">${Object.entries(UNDERLAG).map(([k, v]) => `<option value="${k}"${b.underlag === k ? " selected" : ""}>${v}</option>`).join("")}</select>
         <select class="rw" data-bf="storrelse" aria-label="Størrelse">${Object.entries(STORRELSE).map(([k, v]) => `<option value="${k}"${b.storrelse === k ? " selected" : ""}>${v}-bane</option>`).join("")}</select>
+        ${erGjest(a) ? `<label class="note" style="display:flex;gap:6px;align-items:center">Hoopit bane-ID<input type="text" class="rw" data-bf="hoopit" inputmode="numeric" value="${esc(b.hoopit || "")}" style="width:8ch" aria-label="Hoopit bane-ID for ${esc(b.navn)}"></label>` : ""}
         <button type="button" class="btn danger rw" data-bdel="${esc(b.id)}">Slett bane</button></div>
       <div class="seg" role="group" aria-label="Kobling"><button type="button" class="rw" data-kobling="fotball.no" aria-pressed="${!fri}">Knyttet til fotball.no</button><button type="button" class="rw" data-kobling="fri" aria-pressed="${fri}">Frittstående</button></div>
       <div class="body">
@@ -1505,7 +1573,7 @@ function showKamp(id) {
 }
 // Treningskamp: vises som en kamp med egen farge, legges inn her fordi den ikke finnes på fotball.no
 function treningskampDialog(id, date, minutes) {
-  const old = id ? S.kamper[id] : null, a = old ? anlegg(old.anleggId) : curA(); if (!a || (old ? !canEditKamp(old) : !canCreateTK())) return;
+  const old = id ? S.kamper[id] : null, a = old ? anlegg(old.anleggId) : curA(); if (!a || erGjest(a) || (old ? !canEditKamp(old) : !canCreateTK())) return;
   const start = old ? old.tid : fromMin(minutes != null ? Math.round(minutes / 15) * 15 : 18 * 60);
   const sf = old ? (spillformKey(old.spillform) || "11") : "7";
   const lagField = isAdmin() ? `<input type="text" id="tk-lag" list="lagList" value="${esc(old?.lag || "")}" placeholder="f.eks. G12 Blå">`
@@ -1542,7 +1610,7 @@ function treningskampDialog(id, date, minutes) {
   if (!old) setTimeout(() => $("#tk-mot")?.focus(), 30);
 }
 function newBooking(date, minutes) {
-  const a = curA(); if (!a || !isAdmin()) return;
+  const a = curA(); if (!a || !isAdmin() || erGjest(a)) return;
   const start = minutes != null ? Math.round(minutes / 15) * 15 : 17 * 60;
   openDlg("Ny enkeltbooking", `<form class="form" id="bf">
       <label class="wide">Hva<input type="text" id="bf-tittel" required placeholder="f.eks. Cup, ekstratrening, banevedlikehold"></label>
@@ -1677,13 +1745,13 @@ function syncReqType() { const t = $("#rf-type").value; $$("#rf [data-rt]").forE
 function renderRequestForm() {
   if (!canRequest()) return;
   const v = $("#rf-lag").value; $("#rf-lag").innerHTML = myLag().map(l => `<option>${esc(l)}</option>`).join(""); if (myLag().includes(v)) $("#rf-lag").value = v;
-  anleggOptions($("#rf-anlegg")); if (!$("#rf-anlegg").dataset.touched && S.anleggId) $("#rf-anlegg").value = S.anleggId;
+  anleggOptions($("#rf-anlegg"), false, true); if (!$("#rf-anlegg").dataset.touched && S.anleggId) $("#rf-anlegg").value = S.anleggId;
   delOptions($("#rf-del"), anlegg($("#rf-anlegg").value), $("#rf-del").value);
 }
 function newRequest(date, minutes) {
   if (!canRequest()) return;
   show("foresporsler"); renderRequestForm();
-  if (S.anleggId) { $("#rf-anlegg").value = S.anleggId; delOptions($("#rf-del"), curA(), defaultPart(curA(), S.baneId)); }
+  if (S.anleggId && !erGjest(curA())) { $("#rf-anlegg").value = S.anleggId; delOptions($("#rf-del"), curA(), defaultPart(curA(), S.baneId)); }
   if (date) {
     $("#rf-type").value = "enkelt"; $("#rf-dato").value = date;
     if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#rf-fra").value = fromMin(st); $("#rf-til").value = fromMin(Math.min(st + 90, 23 * 60)); }
@@ -2047,6 +2115,7 @@ function planColumns() {
   // kolonner per anlegg og bane: kvarter hvis banen har kvarter, ellers halvdeler, ellers hel
   const cols = [];
   for (const a of S.cfg.anlegg) for (const b of a.baner) {
+    if (erGjest(a)) continue;
     const parts = partsOf(a, b.id); if (!parts.length) continue;
     const qs = parts.filter(d => d.bredde === 3), hs = parts.filter(d => d.bredde === 6);
     const unit = qs.length ? 3 : hs.length ? 6 : 12;
@@ -2372,7 +2441,7 @@ function importTreningsark(wb) {
       const cols = [0, 1, 2, 3].filter(i => /^banedel\s*[a-d]$/i.test(norm(rows[r][c + i])));
       const anleggNavn = norm((rows[0] || []).slice(c - 1, c + 4).find(v => norm(v) && !/^versjon/i.test(norm(v))));
       let day = null; for (let rr = r - 1; rr >= 0 && rr >= r - 3 && !day; rr--) for (const v of (rows[rr] || []).slice(c - 1, c + 4)) { const d = DAYS[norm(v).toLowerCase()]; if (d) { day = d; break; } }
-      const a = S.cfg.anlegg.find(x => { const n1 = x.navn.toLowerCase(), n2 = anleggNavn.toLowerCase(); return n2 && (n1.includes(n2) || n2.includes(n1.split(" ")[0])); });
+      const a = S.cfg.anlegg.find(x => { if (erGjest(x)) return false; const n1 = x.navn.toLowerCase(), n2 = anleggNavn.toLowerCase(); return n2 && (n1.includes(n2) || n2.includes(n1.split(" ")[0])); });
       if (!a) { unknownA.add(anleggNavn || "(uten navn)"); continue; }
       const b = linkedBane(a);
       for (let rr = r + 1; rr < rows.length; rr++) {
@@ -2680,6 +2749,7 @@ function initOppsett() {
       saveCfgSoon(c => { const A = c.anlegg.find(x => x.id === aId); const b = A?.baner.find(x => x.id === bId); if (!b) return;
         if (f === "navn") b.navn = v.trim() || b.navn;
         if (f === "underlag") b.underlag = v;
+        if (f === "hoopit") { const n = v.replace(/\D/g, ""); if (n) b.hoopit = +n; else delete b.hoopit; }
         if (f === "storrelse") { // bytt standardnavn på delene hvis de ikke er endret
           const old = partNames(b.storrelse), nw = partNames(v); b.storrelse = v;
           A.delbaner.filter(d => d.baneId === bId).forEach(d => { const i = old.indexOf(d.navn); if (i >= 0) d.navn = nw[i]; });
@@ -2721,7 +2791,9 @@ function initOppsett() {
     const aId = $("#oA").value; if (!aId) return; const v = e.target.value.trim();
     saveCfgSoon(c => { const A = c.anlegg.find(x => x.id === aId); if (!A) return;
       if (e.target.id === "aEdit-navn" && v) A.navn = v;
-      if (e.target.id === "aEdit-fiks") A.fiksId = v.replace(/\D/g, ""); });
+      if (e.target.id === "aEdit-fiks") A.fiksId = v.replace(/\D/g, "");
+      if (e.target.id === "aEdit-gjest") { if (e.target.checked) A.gjest = true; else delete A.gjest; }
+      if (e.target.id === "aEdit-hoopit") { const m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(v); if (m) A.hoopit = { ...(A.hoopit || {}), kalender: m[1].toLowerCase() }; else if (!v) delete A.hoopit; } });
     renderAll();
   });
   $("#oAddB").onclick = async () => {
@@ -2779,7 +2851,7 @@ $("#addRequest").onclick = () => newRequest(null);
 $("#addTK").onclick = () => treningskampDialog(null, ymd(S.week));
 function newEnkelt(date, minutes) {
   stopEdit(); show("treninger"); applyRoleUI(); $("#tf-type").value = "enkelt"; syncTrainType();
-  if (S.anleggId) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), defaultPart(curA(), S.baneId)); }
+  if (S.anleggId && !erGjest(curA())) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), defaultPart(curA(), S.baneId)); }
   if (date) $("#tf-dato").value = date;
   if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#tf-fra").value = fromMin(st); $("#tf-til").value = fromMin(Math.min(st + 90, 23 * 60)); }
   $("#tf").dispatchEvent(new Event("change")); (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus();
@@ -2791,8 +2863,8 @@ $("#grid").addEventListener("click", e => {
   const dh = e.target.closest("[data-dayidx]");
   if (dh) { S.day = S.day == null ? +dh.dataset.dayidx : null; renderWeek(); return; }
   const b = e.target.closest(".blk");
-  if (b) { if (b.dataset.type === "trening") showTraining(b.dataset.id, b.dataset.date); else if (b.dataset.type === "foresp") show("foresporsler"); else showKamp(b.dataset.id); return; }
-  const day = e.target.closest(".day"); if (!day || !(isAdmin() || canRequest() || isPluss())) return;
+  if (b) { if (b.dataset.type === "trening") showTraining(b.dataset.id, b.dataset.date); else if (b.dataset.type === "gjest") showGjest(b.dataset.id); else if (b.dataset.type === "foresp") show("foresporsler"); else showKamp(b.dataset.id); return; }
+  const day = e.target.closest(".day"); if (!day || erGjest(curA()) || !(isAdmin() || canRequest() || isPluss())) return;
   const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   const y = e.clientY - day.getBoundingClientRect().top; const min = DAY_START + y / hpx * 60;
   isAdmin() ? newBooking(day.dataset.date, min) : isPluss() ? newEnkelt(day.dataset.date, min) : newRequest(day.dataset.date, min);
