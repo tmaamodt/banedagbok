@@ -53,7 +53,9 @@ Når admin godkjenner en forespørsel, blir den automatisk en treningstid. Fanen
 - I uka vises den stiplet og overstreket.
 - Den listes under «Kamp eller booking går foran», og regnes ikke som en kollisjon.
 
-Rødt kollisjonsvarsel gis bare når to treninger krasjer, eller når kamper og bookinger krasjer med hverandre.
+**Kollisjoner** vises i selve boksene, ikke som varsler over uka. Når to treninger krasjer, eller kamper og bookinger krasjer med hverandre, blir boksene røde. Boksene som overlapper, legges oppå hverandre med litt forskyvning, så alle kan klikkes.
+
+**Bare ett lag:** alle, også besøkende, kan velge et lag i lista ved siden av banevalget. Da vises lagets treninger, treningskamper, forespørsler og kamper fra fotball.no (via koblingene under Lag). Det som overlapper med lagets tider på samme del av banen, vises også, men blekt. Trenere har sine egne lag øverst i lista. Valget huskes til neste gang.
 
 ## Lag og treningsgrupper
 
