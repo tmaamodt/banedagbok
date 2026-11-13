@@ -28,11 +28,20 @@ Faste treningstider legges bare inn av admin, eller ved at admin godkjenner en f
 
 **Treningstider** er en visning som er lik for alle: treningstidene samlet per lag, med dag, tid, bane og hvilken periode eller hvilke uker de gjelder. Velg ett lag eller alle, og filtrer på anlegg. Trenere kan krysse av for «Bare mine lag». Faste treninger med periode som er over, vises ikke. Klikk på en trening for å se mer, og for å avlyse, endre eller slette hvis du har lov.
 
-**Søk om tid i ukevisningen.** Logget inn velger du bane og uke og klikker på en ledig flate. Da åpnes et skjema med dag, klokkeslett og den delen av banen du klikket på (kvarter, halvdel eller hele). Skjemaet sier med en gang om tiden er ledig eller hva den kolliderer med. Knappen «Søk om tid» i ukevisningen åpner det samme skjemaet.
+**Ny tid legges inn eller søkes om i ukevisningen.** Logget inn merker du først et område i uka:
 
-- **Trener:** søker om én dag, fast tid eller treningskamp.
-- **Trener+:** legger inn enkelttreninger direkte på samme måte. Fast tid søkes om med «Søk om fast tid i stedet» i skjemaet.
-- **Admin:** et klikk på en ledig flate gir en enkeltbooking. «+ Treningstid» legger inn faste treninger og enkelttreninger.
+- **Klikk** på en ledig flate for å merke halvannen time fra der du klikket, i det kvarteret du klikket i.
+- **Dra** over tid og del av banen for å merke akkurat det du vil, også oppå treninger som ligger der fra før. Drar du over to kvarter, blir det halvdelen, og over hele bredden blir det hele banen.
+- Det merkede vises med ramme i uka og i en linje over sesongstripa. Esc eller ✕ fjerner merkingen.
+
+Et klikk åpner ikke noe skjema. Det gjør knappen:
+
+- **«Søk om tid»** (Trener og Trener+): åpner forespørselen med dag, tid og del av banen fra det merkede. Skjemaet sier med en gang om tiden er ledig eller hva den kolliderer med.
+- **«+ Booking»** (Admin og Trener+): spør hva som skal legges inn i det merkede området.
+  - **Trener+:** enkelttrening, treningskamp eller søknad om fast tid.
+  - **Admin:** fast trening, enkelttrening, treningskamp eller annen booking (cup, banevedlikehold og liknende).
+
+Uten merking fungerer knappene også, men da må dag, tid og bane fylles ut i skjemaet. Gjesteanlegg kan ikke merkes.
 
 Når admin godkjenner en forespørsel, blir den automatisk en treningstid. Fanen Forespørsler viser forespørslene og svarene.
 

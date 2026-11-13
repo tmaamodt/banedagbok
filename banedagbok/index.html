@@ -104,7 +104,12 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
     linear-gradient(to right, transparent calc(50% - 1px), var(--pitch) calc(50% - 1px), var(--pitch) calc(50% + 1px), transparent calc(50% + 1px)),
     linear-gradient(to right, transparent calc(25% - .5px), var(--chalk) calc(25% - .5px), var(--chalk) calc(25% + .5px), transparent calc(25% + .5px)),
     linear-gradient(to right, transparent calc(75% - .5px), var(--chalk) calc(75% - .5px), var(--chalk) calc(75% + .5px), transparent calc(75% + .5px)); }
-.day.addable { cursor: copy }
+.day.addable { cursor: crosshair; user-select: none }
+.selbox { position: absolute; z-index: 3; border: 2px solid var(--ink); border-radius: 6px; background: color-mix(in srgb, var(--pitch) 22%, transparent); pointer-events: none; font: 600 11px var(--f-mono); color: var(--ink); padding: 2px 4px; overflow: hidden }
+.selinfo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--surface); font-size: 14px }
+.choose { display: grid; gap: 8px }
+.choose button { text-align: left; display: grid; gap: 2px; padding: 10px 14px }
+.choose button small { font-weight: 400; color: var(--muted) }
 .blk { position: absolute; border-radius: 4px; padding: 3px 5px; overflow: hidden; font-size: 12px; line-height: 1.25; border: 1px solid; text-align: left; display: block; width: auto }
 .blk.kamp { background: var(--match-soft); border-color: var(--match); color: var(--ink) }
 .blk.kamp .k { color: var(--match) }
@@ -333,11 +338,10 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="showLK"> Vis lagenes kamper</label>
       <button class="btn" id="jumpPrev" title="Forrige uke med aktivitet">⇤ Forrige aktivitet</button>
       <button class="btn" id="jumpNext" title="Neste uke med aktivitet">Neste aktivitet ⇥</button>
-      <button class="btn primary" id="addTrain">+ Treningstid</button>
-      <button class="btn rw" id="addBooking">+ Enkeltbooking</button>
-      <button class="btn" id="addTK" hidden>+ Treningskamp</button>
+      <button class="btn primary" id="addBook" hidden>+ Booking</button>
       <button class="btn primary" id="addRequest" hidden>Søk om tid</button>
     </div>
+    <div class="selinfo" id="selInfo" hidden></div>
     <div class="season panel">
       <div class="bar"><h3>Sesongen <span class="num" id="seasonYear"></span></h3><span class="spacer"></span>
         <div class="legend"><span><i style="background:var(--match)"></i>Kamper</span><span><i style="background:var(--friendly)"></i>Treningskamper</span><span><i style="background:var(--train)"></i>Treninger</span><span><i style="background:var(--pitch-soft);border:1px solid var(--pitch)"></i>Booking</span><span><i style="border:2px solid var(--conflict)"></i>Kollisjon</span></div></div>
@@ -464,7 +468,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <div class="cols">
       <div class="panel" style="display:grid;gap:12px;min-width:0">
         <div class="bar"><h2 id="rlTitle">Mine forespørsler</h2><span class="spacer"></span><button class="btn" type="button" id="rlGoUke" hidden>Søk om tid i ukevisningen</button></div>
-        <p class="note" id="rlNote" hidden>Du søker om tid i ukevisningen: velg bane og uke, og klikk på en ledig flate. Da ser du med en gang om tiden er ledig.</p>
+        <p class="note" id="rlNote" hidden>Du søker om tid i ukevisningen: velg bane og uke, merk et område ved å klikke eller dra, og trykk «Søk om tid». Da ser du med en gang om tiden er ledig.</p>
         <div class="cards" id="rList"></div>
       </div>
     </div>
@@ -891,11 +895,92 @@ const defaultPart = (a, bId) => { const ps = partsOf(a, bId || a?.baner[0]?.id);
 // Del med denne plasseringen på en bane (standard: første bane knyttet til fotball.no)
 const delbaneByZone = (a, z, bId) => (a?.delbaner || []).find(d => d.baneId === (bId || linkedBane(a)?.id) && d.start === z.start && d.bredde === z.bredde);
 // Hvor en fotball.no-bane som ikke er koblet ennå, havner: riktig del av den knyttede banen hvis den er aktiv, ellers hele banen
-// Delen av banen der man klikket (andel fra venstre): kvarter hvis det finnes, ellers halvdel, ellers hele
-function partAt(a, bId, x) {
-  bId ||= a?.baner[0]?.id; const q = Math.min(3, Math.max(0, Math.floor(x * 4))) * 3;
-  const ok = d => d && d.aktiv !== false ? d : null;
-  return (ok(delbaneByZone(a, { start: q, bredde: 3 }, bId)) || ok(delbaneByZone(a, { start: q < 6 ? 0 : 6, bredde: 6 }, bId)) || ok(delbaneByZone(a, { start: 0, bredde: 12 }, bId)))?.id || defaultPart(a, bId);
+// Merking i uka: klikk eller dra over tid og del av banen. S.sel = {aId, bId, date, start, end, delId}
+const kanMerke = () => !erGjest(curA()) && (isAdmin() || isPluss() || canRequest());
+const snap = m => Math.round(m / 15) * 15;
+// Minste del av banen som dekker kvarterene zs–ze; ellers hele banen
+function partForZone(a, bId, zs, ze) {
+  const ps = partsOf(a, bId).filter(d => d.start <= zs && d.start + d.bredde >= ze).sort((x, y) => x.bredde - y.bredde);
+  return (ps[0] || delbaneByZone(a, { start: 0, bredde: 12 }, bId))?.id || defaultPart(a, bId);
+}
+function selLabel(sel) { const a = anlegg(sel.aId); return `${fmtDate(sel.date)} ${fromMin(sel.start)}–${fromMin(sel.end)} · ${delLabel(a, sel.delId)}`; }
+function selBoxStyle(sel) {
+  const a = anlegg(sel.aId), [zs, ze] = zoneOf(a, sel.delId), hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
+  return `top:${(sel.start - DAY_START) / 60 * hpx}px;height:${Math.max(14, (sel.end - sel.start) / 60 * hpx)}px;left:${zs / 12 * 100}%;width:${(ze - zs) / 12 * 100}%`;
+}
+function drawSel() {
+  $$("#grid .selbox").forEach(x => x.remove());
+  const sel = S.sel, a = curA(), info = $("#selInfo");
+  if (!sel || sel.aId !== a?.id || sel.bId !== (curBane()?.id)) { info.hidden = true; return; }
+  const day = $(`#grid .day[data-date="${sel.date}"]`);
+  if (day) day.insertAdjacentHTML("beforeend", `<div class="selbox" style="${selBoxStyle(sel)}">${fromMin(sel.start)}–${fromMin(sel.end)}</div>`);
+  info.hidden = false;
+  info.innerHTML = `<b>Merket:</b> ${esc(selLabel(sel))}<span class="spacer"></span>${isAdmin() || isPluss() ? `<button class="btn primary" type="button" data-selgo="book">+ Booking</button>` : ""}${canRequest() ? `<button class="btn${isAdmin() || isPluss() ? "" : " primary"}" type="button" data-selgo="req">Søk om tid</button>` : ""}<button class="btn ghost" type="button" data-selgo="x" aria-label="Fjern merkingen">✕</button>`;
+}
+function clearSel() { S.sel = null; drawSel(); }
+function initMerking() {
+  const grid = $("#grid"); let drag = null;
+  const at = (day, e) => { const r = day.getBoundingClientRect(), hpx = r.height / ((DAY_END - DAY_START) / 60);
+    return { min: DAY_START + (e.clientY - r.top) / hpx * 60, q: Math.min(3, Math.max(0, Math.floor((e.clientX - r.left) / r.width * 4))) }; };
+  const make = (p0, p1, moved) => {
+    const a = curA(), bId = curBane()?.id;
+    let start = snap(Math.min(p0.min, p1.min)), end = snap(Math.max(p0.min, p1.min));
+    if (!moved || end - start < 30) { start = Math.floor(p0.min / 15) * 15; end = start + 90; }
+    start = Math.max(DAY_START, start); end = Math.min(DAY_END, Math.max(end, start + 15));
+    const q0 = moved ? Math.min(p0.q, p1.q) : p0.q, q1 = moved ? Math.max(p0.q, p1.q) : p0.q;
+    return { aId: a.id, bId, date: drag.day.dataset.date, start, end, delId: partForZone(a, bId, q0 * 3, (q1 + 1) * 3) };
+  };
+  grid.addEventListener("pointerdown", e => {
+    if (e.button || e.target.closest("[data-dayidx]") || !kanMerke()) return;
+    const day = e.target.closest(".day"); if (!day) return;
+    // dra kan starte oppå en trening eller kamp; et klikk uten å dra åpner den som før
+    drag = { day, p0: at(day, e), x: e.clientX, y: e.clientY, moved: false, blk: !!e.target.closest(".blk") };
+    if (e.pointerType === "mouse") e.preventDefault();
+  });
+  document.addEventListener("pointermove", e => {
+    if (!drag) return;
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) drag.moved = true;
+    if (!drag.moved) return;
+    S.sel = make(drag.p0, at(drag.day, e), true); drawSel();
+  });
+  document.addEventListener("pointerup", e => {
+    if (!drag) return;
+    if (drag.blk && !drag.moved) { drag = null; return; }
+    if (drag.blk) S.ikkeKlikk = true; // klikket som kommer etter et drag, skal ikke åpne blokka
+    S.sel = make(drag.p0, at(drag.day, e), drag.moved); drag = null; drawSel();
+  });
+  document.addEventListener("pointercancel", () => { drag = null; });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && S.sel && !document.querySelector("dialog[open]")) clearSel(); });
+  $("#selInfo").addEventListener("click", e => { const b = e.target.closest("[data-selgo]"); if (!b) return; b.dataset.selgo === "x" ? clearSel() : b.dataset.selgo === "book" ? bookingValg() : sokOmTid(); });
+}
+// «+ Booking»: velg hva som skal legges inn i det merkede området
+function bookingValg() {
+  const a = curA(); if (!a || erGjest(a) || !(isAdmin() || isPluss())) return;
+  const sel = S.sel && S.sel.aId === a.id ? S.sel : null;
+  const valg = [
+    isAdmin() && ["fast", "Fast trening", "Hver uke i en periode"],
+    ["enkelt", "Enkelttrening", "Én gang"],
+    ["tk", "Treningskamp", "Kamp som ikke finnes på fotball.no"],
+    isAdmin() && ["booking", "Annen booking", "Cup, banevedlikehold, arrangement …"],
+    !isAdmin() && canRequest() && ["sok", "Søk om fast tid", "Faste treningstider godkjennes av admin"],
+  ].filter(Boolean);
+  openDlg("Ny booking", `<p class="note">${sel ? `Merket: <b>${esc(selLabel(sel))}</b>` : "Tips: merk et område i uka først, så fylles dag, tid og del av banen ut."}</p>
+    <div class="choose">${valg.map(([k, t, d]) => `<button class="btn" type="button" data-valg="${k}"><b>${t}</b><small>${d}</small></button>`).join("")}</div>`, "");
+  $("#dlgBody").onclick = e => {
+    const b = e.target.closest("[data-valg]"); if (!b) return; const k = b.dataset.valg; dlg.close(); $("#dlgBody").onclick = null;
+    const d = sel?.date, st = sel?.start, en = sel?.end, del = sel?.delId;
+    if (k === "fast" || k === "enkelt") nyTrening(k, sel);
+    else if (k === "tk") treningskampDialog(null, d, st, del, sel ? en - st : null);
+    else if (k === "booking") newBooking(d, st, del, sel ? en - st : null);
+    else if (k === "sok") { newRequest(d, st, del, en); $("#rf-type").value = "fast"; syncReqType(); if (d) $("#rf-dag").value = String((parseYmd(d).getDay() + 6) % 7 + 1); $("#rf").dispatchEvent(new Event("change")); }
+  };
+}
+function sokOmTid() { const sel = S.sel && S.sel.aId === curA()?.id ? S.sel : null; newRequest(sel?.date, sel?.start, sel?.delId, sel?.end); }
+function nyTrening(type, sel) {
+  stopEdit(); openTf(); $("#tf-type").value = type; syncTrainType();
+  const a = curA(); if (a && !erGjest(a)) { $("#tf-anlegg").value = a.id; delOptions($("#tf-del"), a, sel?.delId || defaultPart(a, S.baneId)); }
+  if (sel) { $("#tf-dato").value = sel.date; $("#tf-dag").value = String((parseYmd(sel.date).getDay() + 6) % 7 + 1); $("#tf-fra").value = fromMin(sel.start); $("#tf-til").value = fromMin(sel.end); }
+  $("#tf").dispatchEvent(new Event("change")); (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus();
 }
 // Kort beskjed nederst på skjermen
 function flash(html) {
@@ -1283,12 +1368,10 @@ function applyRoleUI() {
   $$("nav.tabs button").forEach(b => { b.hidden = !tabAllowed(b.dataset.view); });
   if (!tabAllowed(S.view)) show("uke");
   const gj = erGjest(curA()); // gjesteanlegg: bare visning
-  $("#addTrain").hidden = gj || !canCreateTraining("enkelt");
-  $("#addBooking").hidden = gj || !isAdmin();
-  $("#addTK").hidden = gj || !canCreateTK();
+  $("#addBook").hidden = gj || !(isAdmin() || isPluss());
   $("#addRequest").hidden = gj || !canRequest();
-  $("#tlHint").textContent = canRequest() || isAdmin() ? "Ny tid legges inn eller søkes om ved å klikke på en ledig flate i ukevisningen." : "";
-  $("#ukeNoteClick").textContent = gj ? "" : isAdmin() ? ", og på en ledig flate for å legge inn en enkeltbooking" : isPluss() ? ", og på en ledig flate for å legge inn en enkelttrening" : canRequest() ? ", og på en ledig flate for å søke om tid" : "";
+  $("#tlHint").textContent = canRequest() || isAdmin() ? "Ny tid legges inn eller søkes om i ukevisningen: merk et område og trykk «+ Booking» eller «Søk om tid»." : "";
+  $("#ukeNoteClick").textContent = gj || !kanMerke() ? "" : `. Merk et område i uka ved å klikke eller dra over tid og del av banen, og trykk «${isAdmin() || isPluss() ? "+ Booking" : "Søk om tid"}»`;
   // treningsskjema
   const pluss = rolle() === "trener_pluss";
   $("#tfPlussNote").hidden = isAdmin() || !isPluss();
@@ -1354,6 +1437,7 @@ function renderWeek() {
     html += `</div>`;
   }
   grid.innerHTML = html;
+  drawSel();
   // lagenes kamper (filter): treninger der laget har kamp et annet sted er trolig ledige
   const lk = $("#lkPanel"); lk.hidden = !S.showLK;
   if (S.showLK) {
@@ -1605,7 +1689,7 @@ function showKamp(id) {
   confirmBtn($("#kDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
 }
 // Treningskamp: vises som en kamp med egen farge, legges inn her fordi den ikke finnes på fotball.no
-function treningskampDialog(id, date, minutes) {
+function treningskampDialog(id, date, minutes, delId, varighet) {
   const old = id ? S.kamper[id] : null, a = old ? anlegg(old.anleggId) : curA(); if (!a || erGjest(a) || (old ? !canEditKamp(old) : !canCreateTK())) return;
   const start = old ? old.tid : fromMin(minutes != null ? Math.round(minutes / 15) * 15 : 18 * 60);
   const sf = old ? (spillformKey(old.spillform) || "11") : "7";
@@ -1617,7 +1701,7 @@ function treningskampDialog(id, date, minutes) {
       <label>Dato<input type="date" id="tk-dato" value="${esc(old?.dato || date || ymd(new Date()))}"></label>
       <label>Avspark<input type="time" id="tk-tid" value="${esc(start)}" step="300"></label>
       <label>Spillform<select id="tk-sf">${["11", "9", "7", "5", "3"].map(n => `<option value="${n}"${n === sf ? " selected" : ""}>${n} mot ${n}</option>`).join("")}</select></label>
-      <label>Banen opptatt (min)<input type="number" id="tk-var" min="15" max="300" step="5" value="${old ? kampVarighet(old) : +(S.cfg.varighet[sf] || 75)}"></label>
+      <label>Banen opptatt (min)<input type="number" id="tk-var" min="15" max="300" step="5" value="${old ? kampVarighet(old) : varighet || +(S.cfg.varighet[sf] || 75)}"></label>
       <label class="wide" style="grid-column:1/-1">Del av banen<select id="tk-del"></select></label>
       <label class="wide" style="grid-column:1/-1">Merknad<input type="text" id="tk-merk" value="${esc(old?.merknad || "")}"></label>
       <div id="tk-coll" class="note" style="grid-column:1/-1"></div></form>
@@ -1626,7 +1710,7 @@ function treningskampDialog(id, date, minutes) {
   // spillform foreslår størrelse på banen: 11 → hel, 9 → halvdel, 7/5/3 → kvart
   const suggest = n => { const bId = baneOf(a, $("#tk-del").value)?.id || S.baneId; const w = n === "11" ? 12 : n === "9" ? 6 : 3;
     const d = partsOf(a, bId).find(x => x.bredde === w) || partsOf(a, bId).find(x => x.bredde === 12); return d?.id; };
-  delOptions($("#tk-del"), a, old?.delbaneId || suggest(sf));
+  delOptions($("#tk-del"), a, old?.delbaneId || delId || suggest(sf));
   const cand = () => ({ type: "enkelt", anleggId: a.id, delbaneId: $("#tk-del").value, dato: $("#tk-dato").value, fra: $("#tk-tid").value, til: fromMin((toMin($("#tk-tid").value) || 0) + (+$("#tk-var").value || 60)) });
   const prev = () => { $("#tk-coll").innerHTML = collisionHtml(collisions(cand(), id), "Banen er ledig.", "kamp"); };
   $("#tk-sf").onchange = () => { const n = $("#tk-sf").value; $("#tk-var").value = +(S.cfg.varighet[n] || 75); delOptions($("#tk-del"), a, suggest(n)); prev(); };
@@ -1637,28 +1721,28 @@ function treningskampDialog(id, date, minutes) {
     if (!isAdmin() && !myLag().includes(lag)) return;
     const k = { ...(old || {}), kilde: "treningskamp", lag, hjemmelag: lag, bortelag: mot, dato: $("#tk-dato").value, tid: $("#tk-tid").value,
       spillform: `${n} MOT ${n}`, varighet: v && v !== +(S.cfg.varighet[n] || 0) ? v : 0, anleggId: a.id, delbaneId: $("#tk-del").value, merknad: $("#tk-merk").value.trim() };
-    try { await S.backend.put("kamper", id || "tk-" + uid(), k); dlg.close(); } catch (e) { $("#tkSave").textContent = errText(e); }
+    try { await S.backend.put("kamper", id || "tk-" + uid(), k); dlg.close(); if (!id) { clearSel(); flash(`Treningskampen er lagt inn: ${esc(lag)} – ${esc(mot)}, ${fmtDate(k.dato)} ${k.tid}.`); } } catch (e) { $("#tkSave").textContent = errText(e); }
   };
   if ($("#tkDel")) confirmBtn($("#tkDel"), "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); });
   if (!old) setTimeout(() => $("#tk-mot")?.focus(), 30);
 }
-function newBooking(date, minutes) {
+function newBooking(date, minutes, delId, varighet) {
   const a = curA(); if (!a || !isAdmin() || erGjest(a)) return;
   const start = minutes != null ? Math.round(minutes / 15) * 15 : 17 * 60;
   openDlg("Ny enkeltbooking", `<form class="form" id="bf">
       <label class="wide">Hva<input type="text" id="bf-tittel" required placeholder="f.eks. Cup, ekstratrening, banevedlikehold"></label>
       <label>Dato<input type="date" id="bf-dato" value="${date || ymd(new Date())}"></label>
       <label>Fra<input type="time" id="bf-tid" value="${fromMin(start)}" step="300"></label>
-      <label>Varighet (min)<input type="number" id="bf-var" min="15" max="900" step="15" value="90"></label>
+      <label>Varighet (min)<input type="number" id="bf-var" min="15" max="900" step="15" value="${varighet || 90}"></label>
       <label class="wide">Del av banen<select id="bf-del"></select></label>
       <label class="wide">Merknad<input type="text" id="bf-merk"></label></form>`,
     `<span class="spacer"></span><button class="btn primary rw" id="bSave">Lagre booking</button>`);
-  delOptions($("#bf-del"), a, defaultPart(a, S.baneId));
+  delOptions($("#bf-del"), a, delId || defaultPart(a, S.baneId));
   $("#bSave").onclick = async () => {
     const tittel = $("#bf-tittel").value.trim(); if (!tittel) { $("#bf-tittel").focus(); return; }
     const k = { kilde: "manuell", tittel, dato: $("#bf-dato").value, tid: $("#bf-tid").value, varighet: +$("#bf-var").value || 60,
       anleggId: a.id, delbaneId: $("#bf-del").value, merknad: $("#bf-merk").value.trim() };
-    try { await S.backend.put("kamper", "b-" + uid(), k); dlg.close(); } catch (e) { $("#bSave").textContent = errText(e); }
+    try { await S.backend.put("kamper", "b-" + uid(), k); dlg.close(); clearSel(); flash(`Bookingen er lagt inn: ${esc(tittel)}, ${fmtDate(k.dato)} ${k.tid}.`); } catch (e) { $("#bSave").textContent = errText(e); }
   };
   setTimeout(() => $("#bf-tittel")?.focus(), 30);
 }
@@ -1685,7 +1769,7 @@ function initTrainForm() {
     try {
       const id = S.editTrain || "t-" + uid(); await S.backend.put("treninger", id, t);
       flash(`Lagret: ${esc(t.lag)}, ${t.type === "enkelt" ? fmtDate(t.dato) : "hver " + DAGER[t.ukedag - 1] + ` til ${fmtDate(t.tom)}`} ${t.fra}–${t.til}.`);
-      tfDlg.close(); $("#tf-lag").value = ""; $("#tf-merk").value = "";
+      tfDlg.close(); clearSel(); $("#tf-lag").value = ""; $("#tf-merk").value = "";
     } catch (err) { msg.innerHTML = `<span class="err">${esc(errText(err))}</span>`; }
   };
   $("#tf-cancel").onclick = () => tfDlg.close();
@@ -1768,7 +1852,7 @@ function initRequestForm() {
     if (!requestDates(r).length) { msg.innerHTML = `<span class="err">Perioden inneholder ingen ${DAGER[r.ukedag - 1]}er.</span>`; return; }
     Object.assign(r, { status: "ny", epost: S.me.epost, navn: S.me.navn || S.me.epost, opprettet: new Date().toISOString() });
     $("#rf-send").disabled = true;
-    try { await S.backend.put("foresporsler", "f-" + uid(), r); rfDlg.close(); flash(`Forespørselen er sendt. Svaret ser du under Forespørsler.`); msg.textContent = ""; $("#rf-merk").value = ""; $("#rf-mot").value = ""; }
+    try { await S.backend.put("foresporsler", "f-" + uid(), r); rfDlg.close(); clearSel(); flash(`Forespørselen er sendt. Svaret ser du under Forespørsler.`); msg.textContent = ""; $("#rf-merk").value = ""; $("#rf-mot").value = ""; }
     catch (err) { msg.innerHTML = `<span class="err">${esc(errText(err))}</span>`; }
     finally { $("#rf-send").disabled = false; }
   };
@@ -1788,13 +1872,13 @@ function renderRequestForm() {
   anleggOptions($("#rf-anlegg"), false, true); if (!$("#rf-anlegg").dataset.touched && S.anleggId) $("#rf-anlegg").value = S.anleggId;
   delOptions($("#rf-del"), anlegg($("#rf-anlegg").value), $("#rf-del").value);
 }
-function newRequest(date, minutes, delId) {
+function newRequest(date, minutes, delId, endMin) {
   if (!canRequest()) return;
   renderRequestForm(); $("#rf-msg").textContent = "";
   if (S.anleggId && !erGjest(curA())) { $("#rf-anlegg").value = S.anleggId; delOptions($("#rf-del"), curA(), delId || defaultPart(curA(), S.baneId)); }
   if (date) {
     $("#rf-type").value = "enkelt"; $("#rf-dato").value = date;
-    if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#rf-fra").value = fromMin(st); $("#rf-til").value = fromMin(Math.min(st + 90, 23 * 60)); }
+    if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#rf-fra").value = fromMin(st); $("#rf-til").value = fromMin(endMin != null ? endMin : Math.min(st + 90, 23 * 60)); }
   }
   if (!rfDlg.open) rfDlg.showModal();
   $("#rf").dispatchEvent(new Event("change")); $("#rf-lag").focus();
@@ -2886,17 +2970,9 @@ function jump(dir) {
 }
 $("#jumpPrev").onclick = () => jump(-1); $("#jumpNext").onclick = () => jump(1);
 $("#strip").onclick = e => { const b = e.target.closest("[data-week]"); if (!b) return; S.week = parseYmd(b.dataset.week); renderWeek(); renderSeason(); };
-$("#addTrain").onclick = () => { stopEdit(); openTf(); if (S.anleggId) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), defaultPart(curA(), S.baneId)); } (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus(); };
-$("#addBooking").onclick = () => newBooking(ymd(S.week));
-$("#addRequest").onclick = () => newRequest(null);
-$("#addTK").onclick = () => treningskampDialog(null, ymd(S.week));
-function newEnkelt(date, minutes, delId) {
-  stopEdit(); openTf(); $("#tf-type").value = "enkelt"; syncTrainType();
-  if (S.anleggId && !erGjest(curA())) { $("#tf-anlegg").value = S.anleggId; delOptions($("#tf-del"), curA(), delId || defaultPart(curA(), S.baneId)); }
-  if (date) $("#tf-dato").value = date;
-  if (minutes != null) { const st = Math.round(minutes / 15) * 15; $("#tf-fra").value = fromMin(st); $("#tf-til").value = fromMin(Math.min(st + 90, 23 * 60)); }
-  $("#tf").dispatchEvent(new Event("change")); (rolle() === "trener_pluss" ? $("#tf-lagsel") : $("#tf-lag")).focus();
-}
+$("#addBook").onclick = bookingValg;
+$("#addRequest").onclick = sokOmTid;
+
 $("#rlGoUke").onclick = () => show("uke");
 $("#tlMine").onchange = renderTrainList;
 $("#rList").addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (!b) return; handleRequest(b.closest("[data-rid]").dataset.rid, b.dataset.act, b); });
@@ -2904,12 +2980,9 @@ $("#grid").addEventListener("click", e => {
   const dh = e.target.closest("[data-dayidx]");
   if (dh) { S.day = S.day == null ? +dh.dataset.dayidx : null; renderWeek(); return; }
   const b = e.target.closest(".blk");
+  if (S.ikkeKlikk) { S.ikkeKlikk = false; return; }
   if (b) { if (b.dataset.type === "trening") showTraining(b.dataset.id, b.dataset.date); else if (b.dataset.type === "gjest") showGjest(b.dataset.id); else if (b.dataset.type === "foresp") show("foresporsler"); else showKamp(b.dataset.id); return; }
-  const day = e.target.closest(".day"); if (!day || erGjest(curA()) || !(isAdmin() || canRequest() || isPluss())) return;
-  const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
-  const r = day.getBoundingClientRect(), y = e.clientY - r.top, min = DAY_START + y / hpx * 60;
-  const delId = partAt(curA(), S.baneId, (e.clientX - r.left) / r.width);
-  isAdmin() ? newBooking(day.dataset.date, min) : isPluss() ? newEnkelt(day.dataset.date, min, delId) : newRequest(day.dataset.date, min, delId);
+  // ledig flate: merkes (se initMerking), og skjema åpnes med «+ Booking» eller «Søk om tid»
 });
 $("#tList").addEventListener("click", e => { const tr = e.target.closest("[data-tid]"); if (tr) showTraining(tr.dataset.tid, null); });
 $("#tlLag").onchange = renderTrainList;
@@ -2924,7 +2997,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
+initMerking(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {
