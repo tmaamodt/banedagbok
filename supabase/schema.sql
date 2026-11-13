@@ -223,8 +223,9 @@ create policy "admin legger til, trener+ bare enkelttreninger" on public.trening
 create policy "admin og trenere endrer egne" on public.treninger for update to authenticated
   using (public.er_admin() or public.har_lag(data->>'lag'))
   with check (public.er_admin() or public.har_lag(data->>'lag'));
-create policy "admin og trenere sletter egne" on public.treninger for delete to authenticated
-  using (public.er_admin() or public.har_lag(data->>'lag'));
+-- trenere sletter bare enkelttreninger; faste treninger avlyses en dag om gangen (avlyst), og endres fremover av admin
+create policy "admin og trenere sletter egne enkelttreninger" on public.treninger for delete to authenticated
+  using (public.er_admin() or (public.har_lag(data->>'lag') and data->>'type' = 'enkelt'));
 
 -- grupper: alle leser, admin og trener+ (for egne lag) endrer
 create policy "alle kan lese" on public.grupper for select to anon, authenticated using (true);

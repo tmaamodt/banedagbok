@@ -710,7 +710,8 @@ const isPluss = () => rolle() === "trener_pluss" && myLag().length > 0;
 // Faste treninger: bare admin. Trener+: enkelttreninger og treningskamper for egne lag. Trenere: slette og avlyse egne.
 const canCreateTraining = type => isAdmin() || (isPluss() && type !== "fast");
 const canEditTraining = t => isAdmin() || (isPluss() && isEnkelt(t) && myLag().includes(t.lag));
-const canDeleteTraining = t => isAdmin() || (isTrainer() && myLag().includes(t.lag));
+const canDeleteTraining = t => isAdmin() || (isTrainer() && isEnkelt(t) && myLag().includes(t.lag));
+const canCancelTraining = t => isAdmin() || (isTrainer() && myLag().includes(t.lag));
 const canCreateTK = () => isAdmin() || isPluss();
 const canEditKamp = k => isAdmin() || (k.kilde === "treningskamp" && isPluss() && myLag().includes(k.lag));
 const canDeleteBooking = k => isAdmin() || (["manuell", "treningskamp"].includes(k.kilde) && isTrainer() && myLag().includes(k.lag));
@@ -1661,24 +1662,33 @@ function confirmBtn(btn, label, fn) {
 }
 
 function showTraining(id, date) {
-  const t = S.treninger[id]; if (!t) return; const a = anlegg(t.anleggId); const d = delbane(a, t.delbaneId);
-  const avl = date ? (t.avlyst || []).includes(date) : false;
-  const canDel = canDeleteTraining(t), canEd = canEditTraining(t);
-  const enk = isEnkelt(t);
+  const t = S.treninger[id]; if (!t) return; const a = anlegg(t.anleggId);
+  const enk = isEnkelt(t), canDel = canDeleteTraining(t), canEd = canEditTraining(t), canAvl = !enk && canCancelTraining(t);
+  // uten dato (fra lista): velg blant de neste øktene
+  const today = ymd(new Date()), neste = [];
+  if (!enk && canAvl && !date) for (let d = monday(parseYmd(today > t.fom ? today : t.fom)); neste.length < 12 && ymd(d) <= t.tom; d = addDays(d, 7)) {
+    const x = ymd(addDays(d, +t.ukedag - 1)); if (x >= today && x >= t.fom && x <= t.tom && weekMatches(t, x)) neste.push(x);
+  }
+  const avlTekst = x => (t.avlyst || []).includes(x);
   openDlg(t.lag, `<dl class="kv"><dt>${enk ? "Enkelttrening" : "Fast trening"}</dt><dd class="num">${enk ? `${fmtDate(t.dato)} ${t.dato.slice(0, 4)}, ` : `${t.uker ? "Annenhver " : "Hver "}${DAGER[t.ukedag - 1]} ${t.uker ? `(${t.uker}suker) ` : ""}`}${esc(t.fra)}–${esc(t.til)}</dd><dt>Bane</dt><dd><span class="kvwrap">${pitchFor(a, t.delbaneId, 48)}<span>${esc(delLabel(a, t.delbaneId))}, ${esc(a?.navn || "")}</span></span></dd>
     ${enk ? "" : `<dt>Periode</dt><dd class="num">${periodeTekst(t)}</dd>`}${t.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(t.merknad)}</dd>` : ""}
     ${(t.avlyst || []).length && showMerknad() ? `<dt>Avlyst</dt><dd class="num">${t.avlyst.map(fmtDate).join(", ")}</dd>` : ""}
-    ${date && !enk ? `<dt>Denne gangen</dt><dd>${fmtDate(date)}${avl ? ' <span class="err">avlyst</span>' : ""}</dd>` : ""}</dl>
-    ${!canDel && !canEd && isTrainer() ? `<p class="note">Dette er ikke et av lagene dine, så du kan ikke endre treningen.</p>` : ""}`,
-    `${canDel && date && !enk ? `<button class="btn" id="dAvl">${avl ? "Gjeninnfør " : "Avlys "}${fmtDate(date)}</button>` : ""}<span class="spacer"></span>
-     ${canDel ? `<button class="btn danger" id="dDel">${enk ? "Slett treningen" : "Slett treningstiden"}</button>` : ""}${canEd ? `<button class="btn" id="dEdit">Rediger</button>` : ""}`);
-  if ($("#dDel")) confirmBtn($("#dDel"), enk ? "Bekreft sletting" : "Bekreft: slett alle ukene", async () => { await S.backend.del("treninger", id); dlg.close(); });
-  if (!$("#dAvl")) { if ($("#dEdit")) $("#dEdit").onclick = () => { dlg.close(); editTraining(id); }; return; }
-  $("#dAvl").onclick = async () => {
-    const nt = clone(t); const set = new Set(nt.avlyst || []); avl ? set.delete(date) : set.add(date); nt.avlyst = [...set].sort();
-    try { await S.backend.put("treninger", id, nt); dlg.close(); } catch (e) { $("#dAvl").textContent = errText(e); }
-  };
+    ${date && !enk ? `<dt>Denne gangen</dt><dd>${fmtDate(date)}${avlTekst(date) ? ' <span class="err">avlyst</span>' : ""}</dd>` : ""}</dl>
+    ${neste.length ? `<label class="note" style="display:grid;gap:4px">Velg økt<select id="dDato">${neste.map(x => `<option value="${x}">${fmtDate(x)} ${x.slice(0, 4)}${avlTekst(x) ? " (avlyst)" : ""}</option>`).join("")}</select></label>` : ""}
+    ${!enk && canAvl && !isAdmin() ? `<p class="note">Du kan avlyse én økt om gangen. Endringer fremover i tid gjøres av admin i planen.</p>` : ""}
+    ${!canDel && !canEd && !canAvl && isTrainer() ? `<p class="note">Dette er ikke et av lagene dine, så du kan ikke endre treningen.</p>` : ""}`,
+    `${canAvl && (date || neste.length) ? `<button class="btn" id="dAvl"></button>` : ""}<span class="spacer"></span>
+     ${canDel ? `<button class="btn danger" id="dDel">${enk ? (isAdmin() ? "Slett treningen" : "Avlys treningen") : "Slett treningstiden"}</button>` : ""}${canEd ? `<button class="btn" id="dEdit">Rediger</button>` : ""}`);
+  if ($("#dDel")) confirmBtn($("#dDel"), enk ? (isAdmin() ? "Bekreft sletting" : "Bekreft: avlys") : "Bekreft: slett alle ukene", async () => { await S.backend.del("treninger", id); dlg.close(); });
   if ($("#dEdit")) $("#dEdit").onclick = () => { dlg.close(); editTraining(id); };
+  const btn = $("#dAvl"); if (!btn) return;
+  const valgt = () => date || $("#dDato").value;
+  const tekst = () => { btn.textContent = `${avlTekst(valgt()) ? "Gjeninnfør" : "Avlys"} ${fmtDate(valgt())}`; };
+  tekst(); if ($("#dDato")) $("#dDato").onchange = tekst;
+  btn.onclick = async () => {
+    const x = valgt(), nt = clone(t), set = new Set(nt.avlyst || []); set.has(x) ? set.delete(x) : set.add(x); nt.avlyst = [...set].sort();
+    try { await S.backend.put("treninger", id, nt); dlg.close(); flash(`${esc(t.lag)} ${fmtDate(x)} er ${set.has(x) ? "avlyst" : "gjeninnført"}.`); } catch (e) { btn.textContent = errText(e); }
+  };
 }
 function showKamp(id) {
   const k = S.kamper[id]; if (!k) return; const a = anlegg(k.anleggId); const man = k.kilde === "manuell", tk = k.kilde === "treningskamp";

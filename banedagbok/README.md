@@ -15,7 +15,7 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 | Rolle | Kan |
 |---|---|
 | Besøkende (ikke innlogget) | Se ukevisning, treningstider per lag, lag og kampliste. Merknader er skjult. |
-| Trener | Slette faste treninger, enkelttreninger, treningskamper og bookinger for egne lag, og avlyse enkeltdager. Sende forespørsel om enkelttrening eller treningskamp. |
+| Trener | Avlyse enkeltøkter av faste treninger, og avlyse (slette) enkelttreninger, treningskamper og bookinger for egne lag. Sende forespørsel om enkelttrening eller treningskamp. |
 | Trener+ | Alt en trener kan, og i tillegg booke og endre enkelttreninger og treningskamper for egne lag direkte. |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
 
@@ -27,6 +27,8 @@ Det finnes to typer treninger:
 Faste treningstider legges bare inn av admin. Trenere avtaler dem med admin, og kan ikke sende forespørsel om dem.
 
 **Treningstider** er en visning som er lik for alle: treningstidene samlet per lag, med dag, tid, bane og hvilken periode eller hvilke uker de gjelder. Velg ett lag eller alle, og filtrer på anlegg. Trenere kan krysse av for «Bare mine lag». Faste treninger med periode som er over, vises ikke. Klikk på en trening for å se mer, og for å avlyse, endre eller slette hvis du har lov.
+
+**Avlysning:** trenere kan bare avlyse én økt om gangen av en fast treningstid, ikke slette eller endre den fremover i tid. Det gjør admin i planen. Klikk på økta i uka for å avlyse den dagen, eller på treningen i Treningstider og velg økt i lista. En avlyst økt kan gjeninnføres på samme måte. Enkelttreninger kan trenere avlyse helt. Databasen stopper også trenere fra å slette faste treningstider.
 
 **Booking i ukevisningen.** Logget inn merker du først et område i uka:
 
