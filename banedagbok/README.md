@@ -87,6 +87,7 @@ Du kan ha flere maler, for eksempel én for sommersesongen og én for vinteren.
 - Du kan bare male med lag som finnes på **Lag**-siden. Nye lag opprettes der. Har malen lag som ikke finnes der (for eksempel fra en import), får du beskjed, og de står med «?» i lista over økter.
 - Faste treninger som ikke hører til planen, vises skravert.
 - **Samme lag på flere baner samtidig** er lov, men gir et varsel under rutenettet med dag, tid og baner, og rutene får rød kant.
+- **Samme lag med flere økter samme dag** (ikke sammenhengende, for eksempel 18:00–19:30 og 20:00–21:30) er også lov, men gir et varsel, uansett hvilke baner øktene er på.
 - Gi malen et navn og trykk **Lagre malen**. Etterpå får du en knapp som tar deg til steg 3.
 
 **3. Kopier malen til uker**

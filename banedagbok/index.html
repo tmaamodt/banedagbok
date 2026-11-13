@@ -2223,6 +2223,18 @@ function dobbelt(cells) {
   return { list: out, keys };
 }
 const baneNavn = ab => { const [aId, bId] = ab.split("|"), a = anlegg(aId), b = a?.baner.find(x => x.id === bId); return `${a?.navn || "?"} ${b?.navn || ""}`.trim(); };
+// Samme lag med flere økter samme dag (ikke sammenhengende), uansett bane: lov, men gir varsel
+function flereOkter(cells) {
+  const by = {};
+  for (const [k, lag] of Object.entries(cells)) { const [, , d, , m] = k.split("|"); (by[lag + "|" + d] ||= new Set()).add(+m); }
+  const out = [];
+  for (const [key, set] of Object.entries(by)) {
+    const [lag, d] = key.split("|"), ms = [...set].sort((a, b) => a - b), blokker = [];
+    for (const m of ms) { const b = blokker[blokker.length - 1]; if (b && b.til === m) b.til = m + SLOT; else blokker.push({ fra: m, til: m + SLOT }); }
+    if (blokker.length > 1) out.push({ lag, d: +d, blokker });
+  }
+  return out.sort((x, y) => x.d - y.d || x.lag.localeCompare(y.lag, "nb", { numeric: true }));
+}
 // Økter per lag: sammenhengende tid samme dag er én økt, uansett hvor mange baner eller kvarter
 function oktPerLag(cells) {
   const by = {};
@@ -2304,8 +2316,10 @@ function renderPlan() {
   wrap.scrollTop = keep;
   const n = renderPlanState();
   $("#plEditTitle").textContent = `2. Mal inn treningene i «${P.navn}»`;
-  $("#plDobbel").innerHTML = dob.list.length ? `<div class="alert" style="display:grid;gap:4px"><b>Samme lag på flere baner samtidig (${dob.list.length})</b><span class="note">Det er lov, men sjekk at det er meningen. Rutene har rød kant.</span>
-    <ul style="margin:0;padding-left:18px">${dob.list.map(x => `<li><b>${esc(x.lag)}</b> ${DAGER[x.d - 1]} ${fromMin(x.fra)}–${fromMin(x.til)}: ${x.baner.map(baneNavn).map(esc).join(" og ")}</li>`).join("")}</ul></div>` : "";
+  const fo = flereOkter(P.cells);
+  $("#plDobbel").innerHTML = (fo.length ? `<div class="alert" style="display:grid;gap:4px;margin-bottom:8px"><b>Samme lag med flere økter samme dag (${fo.length})</b><span class="note">Det er lov, men sjekk at det er meningen.</span>
+    <ul style="margin:0;padding-left:18px">${fo.map(x => `<li><b>${esc(x.lag)}</b> ${DAGER[x.d - 1]}: ${x.blokker.map(b => `${fromMin(b.fra)}–${fromMin(b.til)}`).join(" og ")}</li>`).join("")}</ul></div>` : "") + (dob.list.length ? `<div class="alert" style="display:grid;gap:4px"><b>Samme lag på flere baner samtidig (${dob.list.length})</b><span class="note">Det er lov, men sjekk at det er meningen. Rutene har rød kant.</span>
+    <ul style="margin:0;padding-left:18px">${dob.list.map(x => `<li><b>${esc(x.lag)}</b> ${DAGER[x.d - 1]} ${fromMin(x.fra)}–${fromMin(x.til)}: ${x.baner.map(baneNavn).map(esc).join(" og ")}</li>`).join("")}</ul></div>` : "");
   // økter per lag
   const ok = oktPerLag(P.cells), har = ok.filter(r => r.okter), uten = ok.filter(r => !r.okter), kjent = new Set(S.cfg.lag || []);
   $("#plLagTitle").textContent = `Økter per lag i «${P.navn}»`;
