@@ -927,8 +927,21 @@ let _lkSrc = null, _lkList = [];
 function lagkampList() {
   if (_lkSrc === S.lagkamper) return _lkList;
   _lkSrc = S.lagkamper; _lkList = [];
-  for (const doc of Object.values(S.lagkamper)) for (const k of doc.kamper || []) for (const v of k.vare || [])
-    _lkList.push({ ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId, klubbId: doc.klubbId || null, lagId: doc.lagId || null });
+  // Et lag kan få samme kamp både fra klubbens dokument og fra et lag lagt til med lag-ID: da slås radene sammen til én,
+  // med klubb-ID fra klubben og lag-ID fra laget. Nøkkel: kampnr, ellers dato + tid + hjemmelag + bortelag, pluss vårt lag
+  // (kamper mellom to av våre egne lag skal fortsatt stå én gang per lag).
+  const seen = new Map(), norm = s => String(s || "").trim().toLowerCase();
+  for (const doc of Object.values(S.lagkamper)) for (const k of doc.kamper || []) for (const v of k.vare || []) {
+    const key = (k.kampnr && String(k.kampnr).trim() ? "nr:" + String(k.kampnr).trim() : [k.dato, k.tid, norm(k.hjem), norm(k.borte)].join("|")) + "|" + v.lag;
+    const prev = seen.get(key);
+    if (prev) {
+      if (doc.klubbId) { prev.fraKlubb = true; if (!prev.klubbId) { prev.klubbId = doc.klubbId; prev.klubb = doc.klubb || doc.klubbId; } }
+      if (doc.lagId && !prev.lagId) prev.lagId = doc.lagId;
+      continue;
+    }
+    const r = { ...k, lag: v.lag, hjemme: v.hjemme, klubb: doc.klubb || doc.klubbId, klubbId: doc.klubbId || null, lagId: doc.lagId || null, fraKlubb: !doc.lagId };
+    seen.set(key, r); _lkList.push(r);
+  }
   _lkList.sort((x, y) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
   return _lkList;
 }
@@ -941,7 +954,7 @@ function ukobledeLag() {
   const year = String(new Date().getFullYear()), today = ymd(new Date());
   const koblet = new Set(Object.values(S.grupper).flatMap(g => grpTeams(g))), m = new Map();
   for (const k of lagkampList()) {
-    if (!k.hjemme || !String(k.dato).startsWith(year) || k.lagId || !forslagKlubb(k.klubbId) || koblet.has(k.lag)) continue;
+    if (!k.hjemme || !String(k.dato).startsWith(year) || !k.fraKlubb || !forslagKlubb(k.klubbId) || koblet.has(k.lag)) continue;
     const r = m.get(k.lag) || { lag: k.lag, klubb: k.klubb, n: 0, neste: null, siste: null };
     r.n++; if (k.dato >= today && (!r.neste || k.dato < r.neste)) r.neste = k.dato; if (!r.siste || k.dato > r.siste) r.siste = k.dato;
     m.set(k.lag, r);
