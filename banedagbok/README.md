@@ -15,8 +15,8 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 | Rolle | Kan |
 |---|---|
 | Besøkende (ikke innlogget) | Se ukevisning, treningstider per lag, lag og kampliste. Merknader er skjult. |
-| Trener | Slette faste treninger, enkelttreninger, treningskamper og bookinger for egne lag, og avlyse enkeltdager. Søke om banetid og om treningskamper. |
-| Trener+ | Alt en trener kan, og i tillegg legge inn og endre enkelttreninger og treningskamper for egne lag. Faste treningstider må søkes om. |
+| Trener | Slette faste treninger, enkelttreninger, treningskamper og bookinger for egne lag, og avlyse enkeltdager. Sende forespørsel om enkelttrening eller treningskamp. |
+| Trener+ | Alt en trener kan, og i tillegg booke og endre enkelttreninger og treningskamper for egne lag direkte. |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
 
 Det finnes to typer treninger:
@@ -24,28 +24,29 @@ Det finnes to typer treninger:
 - **Fast hver uke:** en ukedag og en periode fra–til. Den stopper av seg selv når perioden er over, og har hurtigvalg for vår- og høstsesong.
 - **Enkelttrening:** én dato.
 
-Faste treningstider legges bare inn av admin, eller ved at admin godkjenner en forespørsel.
+Faste treningstider legges bare inn av admin. Trenere avtaler dem med admin, og kan ikke sende forespørsel om dem.
 
 **Treningstider** er en visning som er lik for alle: treningstidene samlet per lag, med dag, tid, bane og hvilken periode eller hvilke uker de gjelder. Velg ett lag eller alle, og filtrer på anlegg. Trenere kan krysse av for «Bare mine lag». Faste treninger med periode som er over, vises ikke. Klikk på en trening for å se mer, og for å avlyse, endre eller slette hvis du har lov.
 
-**Ny tid legges inn eller søkes om i ukevisningen.** Logget inn merker du først et område i uka:
+**Booking i ukevisningen.** Logget inn merker du først et område i uka:
 
 - **Klikk** på en ledig flate for å merke halvannen time fra der du klikket, i det kvarteret du klikket i.
 - **Dra** over tid og del av banen for å merke akkurat det du vil, også oppå treninger som ligger der fra før. Drar du over to kvarter, blir det halvdelen, og over hele bredden blir det hele banen.
 - Det merkede vises med ramme i uka og i en linje over sesongstripa. Esc eller ✕ fjerner merkingen.
 
-Et klikk åpner ikke noe skjema. Det gjør knappen:
+Et klikk åpner ikke noe skjema. Det gjør knappen **«Booking»**, som fyller ut dag, tid og del av banen fra det merkede. Skjemaet sier med en gang om tiden er ledig eller hva den kolliderer med.
 
-- **«Søk om tid»** (Trener og Trener+): åpner forespørselen med dag, tid og del av banen fra det merkede. Skjemaet sier med en gang om tiden er ledig eller hva den kolliderer med.
-- **«+ Booking»** (Admin og Trener+): spør hva som skal legges inn i det merkede området.
-  - **Trener+:** enkelttrening, treningskamp eller søknad om fast tid.
-  - **Admin:** fast trening, enkelttrening, treningskamp eller annen booking (cup, banevedlikehold og liknende).
+- **Trener:** velger enkelttrening eller treningskamp og trykker **«Send forespørsel»**. Admin godkjenner eller avslår. Skjemaet sier fra om at man må ha rollen Trener+ for å booke direkte.
+- **Trener+:** velger enkelttrening eller treningskamp og trykker **«Book»**. Da legges det inn med en gang.
+- **Admin:** velger fast trening, enkelttrening, treningskamp eller annen booking (cup, banevedlikehold og liknende).
 
-Uten merking fungerer knappene også, men da må dag, tid og bane fylles ut i skjemaet. Gjesteanlegg kan ikke merkes.
+Velger man treningskamp, foreslås spillform ut fra hvor stor del av banen som er merket: hele banen gir 11er, halvdel 9er og kvart 7er.
+
+Uten merking fungerer knappen også, men da må dag, tid og bane fylles ut i skjemaet. Gjesteanlegg kan ikke merkes.
 
 Når admin godkjenner en forespørsel, blir den automatisk en treningstid. Fanen Forespørsler viser forespørslene og svarene.
 
-**Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. En trener søker om treningskamp fra ukevisningen, og den legges inn når admin godkjenner. De vises som kamper i lilla. Henteskriptet rører dem aldri.
+**Treningskamper** finnes ikke på fotball.no og legges inn i banedagboken av admin eller Trener+. En trener sender forespørsel om treningskamp fra ukevisningen, og den legges inn når admin godkjenner. De vises som kamper i lilla. Henteskriptet rører dem aldri.
 
 **Kamp går foran trening.** Treningstidene settes opp først. En trening som overlapper en kamp eller booking på samme del av banen, viker. Det gjelder uansett hvordan kampen er lagt inn: fra fotball.no, importert, som treningskamp eller som booking for hånd.
 
