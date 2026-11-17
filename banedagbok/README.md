@@ -17,6 +17,7 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 | Besøkende (ikke innlogget) | Se ukevisningen, og velge bane og lag. Merknader er skjult. |
 | Trener | Avlyse enkeltøkter av faste treninger, og avlyse (slette) enkelttreninger, treningskamper og bookinger for egne lag. Sende forespørsel om enkelttrening eller treningskamp. |
 | Trener+ | Alt en trener kan, og i tillegg booke og endre enkelttreninger og treningskamper for egne lag direkte. |
+| Dommeransvarlig | Administrere lokale dommere og sette dem opp på kamper (fanen Dommere). Ser ellers det samme som en besøkende med innlogging. |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
 
 Det finnes to typer treninger:
@@ -151,6 +152,17 @@ Nederst på siden står to oversikter:
 - **Andre ark:** ark i et annet format, som hallen, hoppes over.
 
 Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
+
+## Dommere
+
+**Dommer fra kretsen:** skriptet henter hver natt dommerne fra kampsiden på fotball.no for kommende kamper (3 dager tilbake til 4 uker fram) på egne anlegg. Kampsiden finnes via lagsidene til klubbene i oppsettet. Dommeren vises i kampvinduet med klubb, for eksempel «Lucas B. (Raumnes & Årnes Idrettslag) · fra kretsen».
+
+**Lokale dommere:** har kampen ingen dommer fra kretsen, kan dommeransvarlig (eller admin) sette opp en lokal dommer. Det gjøres på fanen **Dommere**, eller rett i kampvinduet.
+
+- **Dommerregisteret:** navn, telefon, e-post, fødselsår og hvilke kamptyper dommeren kan dømme (5er, 7er, 9er, 11er). Dommere kan merkes som ikke aktive.
+- **Kamper og dommere:** hjemmekamper og treningskamper på egne anlegg for valgt periode, med valg av lokal dommer. Lista viser bare aktive dommere som kan dømme kamptypen. Det kommer varsel hvis samme dommer er satt opp på to kamper samtidig.
+
+**Personvern:** navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin. Alle andre ser bare fornavn og første bokstav i etternavnet, for eksempel «Ola N.». Det gjelder også dommere fra kretsen. Databasen stopper andre fra å lese dommerregisteret.
 
 ## Gjesteanlegg (Hoopit)
 

@@ -13,6 +13,8 @@
 --   grupper     treningsgrupper: et treningsnavn (f.eks. «G16») koblet til lag på fotball.no
 --   lagkamper   alle kamper for klubbene som bruker banene (også bortekamper), én rad per klubb per måned
 --   gjest       treninger og bookinger på gjesteanlegg, hentet fra Hoopit, én rad per bane per måned
+--   dommere     lokale dommere med navn, kontaktinfo, fødselsår og kamptyper. Bare admin og dommeransvarlig ser dem.
+--   dommeroppdrag  lokal dommer satt opp på en kamp (id = kampens id). Alle ser bare kortnavnet («Ola N.»).
 --
 -- Roller (data->>'rolle' i brukere):
 --   admin         alt, inkludert brukere, anlegg, kamper og godkjenning av forespørsler
@@ -72,7 +74,22 @@ create table if not exists public.gjest (
 create table if not exists public.brukere (
   id         text primary key check (id = lower(id)),   -- e-postadressen med små bokstaver
   data       jsonb not null,                            -- {epost, navn, rolle, lag: [...]}
-  rolle      text generated always as (data->>'rolle') stored check (rolle in ('admin', 'trener_pluss', 'trener')),
+  rolle      text generated always as (data->>'rolle') stored check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig')),
+  updated_at timestamptz not null default now()
+);
+-- databaser laget før rollen dommeransvarlig fantes: oppdater sjekken
+alter table public.brukere drop constraint if exists brukere_rolle_check;
+alter table public.brukere add constraint brukere_rolle_check check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig'));
+
+create table if not exists public.dommere (
+  id         text primary key,
+  data       jsonb not null,                            -- {navn, telefon, epost, fodselsar, kamptyper: ["5","7","9","11"], aktiv}
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.dommeroppdrag (
+  id         text primary key,                          -- kampens id
+  data       jsonb not null,                            -- {kampId, dommerId, navn: "Ola N.", tildelt}
   updated_at timestamptz not null default now()
 );
 
@@ -91,7 +108,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest'] loop
+  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag'] loop
     execute format('drop trigger if exists %I_updated_at on public.%I', t, t);
     execute format('create trigger %I_updated_at before update on public.%I for each row execute function public.sett_updated_at()', t, t);
   end loop;
@@ -113,6 +130,9 @@ $$;
 
 create or replace function public.er_admin() returns boolean
 language sql stable as $$ select public.min_rolle() = 'admin' $$;
+
+create or replace function public.er_dommeransvarlig() returns boolean
+language sql stable as $$ select public.min_rolle() in ('admin', 'dommeransvarlig') $$;
 
 -- Er innlogget bruker trener (eller trener+) for dette laget?
 create or replace function public.har_lag(lag text) returns boolean
@@ -191,13 +211,15 @@ alter table public.brukere      enable row level security;
 alter table public.grupper      enable row level security;
 alter table public.lagkamper    enable row level security;
 alter table public.gjest        enable row level security;
+alter table public.dommere      enable row level security;
+alter table public.dommeroppdrag enable row level security;
 
 -- Fjern alle tidligere regler på tabellene, så fila kan kjøres på nytt
 do $$
 declare r record;
 begin
   for r in select policyname, tablename from pg_policies
-           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest') loop
+           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag') loop
     execute format('drop policy %I on public.%I', r.policyname, r.tablename);
   end loop;
 end $$;
@@ -237,6 +259,14 @@ create policy "admin og trener+ endrer egne" on public.grupper for all to authen
 create policy "alle kan lese" on public.lagkamper for select to anon, authenticated using (true);
 create policy "admin endrer" on public.lagkamper for all to authenticated using (public.er_admin()) with check (public.er_admin());
 
+-- dommere: personopplysninger, bare admin og dommeransvarlig ser og endrer dem
+create policy "dommeransvarlig ser og endrer" on public.dommere for all to authenticated
+  using (public.er_dommeransvarlig()) with check (public.er_dommeransvarlig());
+-- dommeroppdrag: alle ser kortnavnet på kampen; admin og dommeransvarlig setter opp
+create policy "alle kan lese" on public.dommeroppdrag for select to anon, authenticated using (true);
+create policy "dommeransvarlig setter opp" on public.dommeroppdrag for all to authenticated
+  using (public.er_dommeransvarlig()) with check (public.er_dommeransvarlig());
+
 -- gjest: alle leser. Bare hent_kamper.py (service_role) skriver.
 create policy "alle kan lese" on public.gjest for select to anon, authenticated using (true);
 
@@ -262,6 +292,9 @@ grant select, insert, update, delete on public.foresporsler, public.brukere to a
 -- anon får lese, men tilgangsreglene over gir dem ingen rader
 grant select on public.foresporsler, public.brukere to anon;
 grant select on public.grupper, public.lagkamper, public.gjest to anon, authenticated;
+-- anon får lese, men tilgangsreglene gir dem ingen rader fra dommere
+grant select on public.dommere, public.dommeroppdrag to anon, authenticated;
+grant insert, update, delete on public.dommere, public.dommeroppdrag to authenticated;
 grant insert, update, delete on public.grupper, public.lagkamper to authenticated;
 
 -- Sanntid: åpne sider oppdateres når noen andre endrer noe
@@ -269,7 +302,7 @@ do $$
 declare t text;
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest'] loop
+    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag'] loop
       if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
         execute format('alter publication supabase_realtime add table public.%I', t);
       end if;

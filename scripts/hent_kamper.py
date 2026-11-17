@@ -21,6 +21,8 @@ Hva skriptet gjør:
   6. Henter alle kampene (også bortekamper) for klubbene i oppsettet (config.klubber) og lagrer
      dem samlet per klubb og måned i tabellen lagkamper. Brukes av treningsgruppene og til å
      se om et lag har kamp et annet sted i treningstiden.
+  8. Henter dommere fra kampsidene på fotball.no for kommende kamper på egne anlegg, og lagrer
+     dem på kampen (bare fornavn og første bokstav i etternavnet, og klubben).
   7. Henter treninger og bookinger for gjesteanlegg fra Hoopit (anlegg med gjest = true og en
      Hoopit-kalender, baner med Hoopit-bane-ID) og lagrer dem per bane og måned i tabellen gjest.
      Kampene som Hoopit har hentet fra fotball.no, hoppes over: de kommer fra fotball.no i punkt 2.
@@ -316,6 +318,8 @@ def main() -> int:
         doc["varighet"] = (gammel or {}).get("varighet") or 0
         if gammel and gammel.get("delbaneManuell"):
             doc["delbaneId"], doc["delbaneManuell"] = gammel["delbaneId"], True
+        if gammel and gammel.get("dommere") is not None:  # hentes i eget steg (hent_dommere)
+            doc["dommere"] = gammel["dommere"]
         if gammel != doc:
             endringer.append({"id": kid, "data": doc})
 
@@ -342,6 +346,7 @@ def main() -> int:
 
     feil += hent_lagkamper(db, cfg, fra, til, args.dry)
     feil += hent_hoopit(db, cfg, fra, til, args.dry)
+    feil += hent_dommere(db, cfg, args.dry)
     return 1 if feil else 0
 
 
@@ -422,6 +427,98 @@ def hent_lagkamper(db: Supabase, cfg: dict, fra: dt.date, til: dt.date, dry: boo
         db.upsert("lagkamper", rader)
         print(f"Lagkamper lagret: {len(rader)} klubb-måneder.")
     return feil
+
+
+# ---------------------------------------------------------------- dommere fra fotball.no
+FOTBALL_NO_SIDE = "https://www.fotball.no/fotballdata"
+
+
+def hent_side(sti: str) -> str:
+    req = urllib.request.Request(f"{FOTBALL_NO_SIDE}/{sti}", headers={"User-Agent": USER_AGENT})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read().decode("utf-8", errors="replace")
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == 3:
+                raise
+            time.sleep(2 ** (attempt + 1))
+    raise RuntimeError("unreachable")
+
+
+def kort_navn(navn: str) -> str:
+    """Personvern: bare første fornavn og første bokstav i etternavnet («Lucas Oliver Bexrud» → «Lucas B.»)."""
+    deler = navn.split()
+    return deler[0] if len(deler) < 2 else f"{deler[0]} {deler[-1][0]}."
+
+
+def les_dommere(side: str) -> list[dict]:
+    """Dommerfanen på kampsiden: rader med rolle, navn og klubb."""
+    import html as _html
+    m = re.search(r'data-tab="dommere".*?<table[^>]*>(.*?)</table>', side, re.S)
+    if not m:
+        return []
+    ut = []
+    for rad in re.findall(r"<tr[^>]*>(.*?)</tr>", m.group(1), re.S):
+        celler = [_html.unescape(re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", rad, re.S)]
+        if len(celler) >= 2 and celler[1]:
+            ut.append({"rolle": celler[0] or "Dommer", "navn": kort_navn(celler[1]), "klubb": celler[2] if len(celler) > 2 else ""})
+    return ut
+
+
+def hent_dommere(db: Supabase, cfg: dict, dry: bool, dager_bak: int = 3, dager_fram: int = 28) -> int:
+    """Dommere for kommende kamper fra fotball.no på egne anlegg (ikke gjesteanlegg).
+    Kampnummeret kobles til kampsiden via lagsidene til klubbene i oppsettet (og lag lagt til med lag-ID)."""
+    idag = dt.date.today()
+    egne = {a["id"] for a in cfg.get("anlegg", []) if not a.get("gjest")}
+    kamper = db.get_all("kamper", f"select=id,data&kilde=eq.fotball.no&dato=gte.{(idag - dt.timedelta(days=dager_bak)).isoformat()}"
+                                  f"&dato=lte.{(idag + dt.timedelta(days=dager_fram)).isoformat()}")
+    trenger = {r["data"]["kampnr"]: r for r in kamper if r["data"].get("kampnr") and r["data"].get("anleggId") in egne}
+    if not trenger:
+        return 0
+    lag = set()
+    for kl in cfg.get("klubber") or []:
+        kid = str(kl.get("fiksId") or "").strip()
+        if not kid:
+            continue
+        try:
+            lag |= set(re.findall(r"lag/hjem/\?fiksId=(\d+)", hent_side(f"klubb/hjem/?fiksId={kid}")))
+        except Exception as e:  # noqa: BLE001
+            print(f"- dommere: klubbsiden {kid} feilet: {e}")
+    lag |= {str(i) for r in db.get_all("grupper", "select=id,data") for i in (r["data"].get("lagIder") or []) if str(i).isdigit()}
+    kampside: dict[str, str] = {}
+    for lid in sorted(lag):
+        if len(kampside) == len(trenger):
+            break
+        try:
+            side = hent_side(f"lag/hjem/?fiksId={lid}")
+        except Exception as e:  # noqa: BLE001
+            print(f"- dommere: lagsiden {lid} feilet: {e}")
+            continue
+        for rad in re.findall(r"<tr[^>]*>(.*?)</tr>", side, re.S):
+            fid = re.search(r"kamp/\?fiksId=(\d+)", rad)
+            nr = re.search(r">\s*(\d{9,12})\s*<", rad)
+            if fid and nr and nr.group(1) in trenger:
+                kampside[nr.group(1)] = fid.group(1)
+        time.sleep(0.3)
+    endret, feil = [], 0
+    for nr, rad in trenger.items():
+        if nr not in kampside:
+            continue
+        try:
+            dommere = les_dommere(hent_side(f"kamp/?fiksId={kampside[nr]}"))
+        except Exception as e:  # noqa: BLE001
+            print(f"- dommere: kamp {nr} feilet: {e}")
+            feil += 1
+            continue
+        if rad["data"].get("dommere") != dommere:
+            endret.append({"id": rad["id"], "data": {**rad["data"], "dommere": dommere}})
+        time.sleep(0.3)
+    print(f"Dommere: {len(trenger)} kommende kamper, {len(kampside)} funnet på fotball.no, "
+          f"{sum(1 for e in endret if e['data']['dommere'])} med dommer fra kretsen, {len(endret)} endret.")
+    if endret and not dry:
+        db.upsert("kamper", endret)
+    return 1 if feil else 0
 
 
 # ---------------------------------------------------------------- gjesteanlegg fra Hoopit

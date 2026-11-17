@@ -76,6 +76,11 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .besok nav.tabs, .besok .season, .besok #jumpPrev, .besok #jumpNext, .besok .lkvalg, .besok #status, .besok .alert.info { display: none !important }
 #v-uke > .bar:first-child { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px }
 .ukelegend { gap: 8px 16px; font-size: 12px }
+@media (min-width: 980px) { .cols.dommercols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) } }
+.dk { display: grid; grid-template-columns: 7.5em 1fr minmax(10em, 14em); gap: 4px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px }
+.dk .krets { font-weight: 600 }
+.dk.mangler .hvem { color: var(--conflict); font-weight: 600 }
+@media (max-width: 720px) { .dk { grid-template-columns: 1fr } }
 .ukelegend i.avl { background: repeating-linear-gradient(135deg, var(--train-soft) 0 3px, var(--line) 3px 4px); border: 1px dashed var(--muted) }
 .daypick { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px }
 .daypick button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 0; display: grid; gap: 1px; font: 600 13px var(--f-display); color: var(--muted); text-transform: capitalize }
@@ -368,6 +373,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <button role="tab" data-view="foresporsler" data-for="trener" aria-selected="false">Forespørsler<span class="badge" id="reqBadge" hidden></span></button>
     <button role="tab" data-view="lag" data-for="alle" aria-selected="false">Lag</button>
     <button role="tab" data-view="kamper" data-for="alle" aria-selected="false">Kamper og bookinger</button>
+    <button role="tab" data-view="dommere" data-for="dommer" aria-selected="false">Dommere</button>
     <button role="tab" data-view="brukere" data-for="admin" aria-selected="false">Brukere</button>
     <button role="tab" data-view="import" data-for="admin" aria-selected="false">Hent fra fotball.no</button>
     <button role="tab" data-view="oppsett" data-for="admin" aria-selected="false">Baner</button>
@@ -525,6 +531,32 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
   </section>
 
   <!-- BRUKERE -->
+  <section id="v-dommere" hidden>
+    <div class="cols dommercols">
+      <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
+        <div class="bar"><h2>Dommere</h2><span class="spacer"></span><button class="btn primary" type="button" id="dNy">+ Ny dommer</button></div>
+        <p class="note">Lokale dommere som kan settes opp på kamper uten dommer fra kretsen. Navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin. På kampene vises bare fornavn og første bokstav i etternavnet, for eksempel «Ola N.».</p>
+        <form class="form" id="df" hidden>
+          <label>Navn<input type="text" id="df-navn" required placeholder="Fornavn Etternavn"></label>
+          <label>Fødselsår<input type="number" id="df-ar" min="1940" max="2025" placeholder="f.eks. 2008"></label>
+          <label>Telefon<input type="tel" id="df-tlf"></label>
+          <label>E-post<input type="email" id="df-epost"></label>
+          <div style="grid-column:1/-1;display:grid;gap:4px"><span class="note">Kan dømme</span><div class="bar" id="df-typer"></div></div>
+          <label class="check" style="grid-column:1/-1"><input type="checkbox" id="df-aktiv" checked> Aktiv (kan settes opp på kamper)</label>
+          <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit" id="df-lagre">Lagre dommer</button><button class="btn ghost" type="button" id="df-avbryt">Avbryt</button><button class="btn danger" type="button" id="df-slett" hidden>Slett dommer</button><span class="note" id="df-msg"></span></div>
+        </form>
+        <div class="tablewrap"><table><thead><tr><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th class="num">Oppdrag</th></tr></thead><tbody id="dList"></tbody></table></div>
+      </div>
+      <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
+        <div class="bar"><h2>Kamper og dommere</h2><span class="spacer"></span>
+          <select id="dkPeriode" aria-label="Periode"><option value="14">Neste 2 uker</option><option value="28">Neste 4 uker</option><option value="90">Neste 3 måneder</option><option value="-30">Siste 30 dager</option></select>
+          <label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dkMangler" checked> Bare uten dommer</label></div>
+        <p class="note">Hjemmekamper og treningskamper på egne anlegg. Kamper med dommer fra kretsen hentes fra fotball.no hver natt. Velg en lokal dommer på kamper uten dommer. Lista viser bare aktive dommere som kan dømme kamptypen.</p>
+        <div class="sched" id="dkList"></div>
+      </div>
+    </div>
+  </section>
+
   <section id="v-brukere" hidden>
     <div class="cols">
       <div class="panel" style="display:grid;gap:12px;min-width:0">
@@ -535,7 +567,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
         <form class="form" id="uf">
           <label>Navn<input type="text" id="uf-navn" required placeholder="Fornavn Etternavn"></label>
           <label>E-post<input type="email" id="uf-epost" required placeholder="navn@eksempel.no"></label>
-          <label>Rolle<select id="uf-rolle"><option value="trener">Trener</option><option value="trener_pluss">Trener+</option><option value="admin">Admin</option></select></label>
+          <label>Rolle<select id="uf-rolle"><option value="trener">Trener</option><option value="trener_pluss">Trener+</option><option value="dommeransvarlig">Dommeransvarlig</option><option value="admin">Admin</option></select></label>
           <div style="display:grid;gap:4px;font-size:13px;color:var(--muted);font-weight:600">Lag<span id="uf-lag"></span></div>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit">Legg til</button><span id="uf-msg" class="note"></span></div>
         </form>
@@ -735,7 +767,7 @@ let DAY_START = 16 * 60, DAY_END = 23 * 60;
 const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7": 75, "5": 60, "3": 45 } };
 
 // ---------- state ----------
-const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, gjest: {}, anleggId: null, baneId: null, week: monday(new Date()),
+const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, gjest: {}, dommere: {}, dommeroppdrag: {}, anleggId: null, baneId: null, week: monday(new Date()),
   view: "uke", day: null, ro: true, backend: null, loaded: false, editTrain: null,
   me: null,          // innlogget bruker: {epost, navn, rolle, lag}
   user: null,        // Supabase-innlogging
@@ -744,12 +776,14 @@ const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}
 try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; S.showLK = !!u.showLK; S.lagSel = u.lagSel || null; S.ukeLag = u.ukeLag || null; S.mobUke = !!u.mobUke; } } catch (e) {}
 let SB = null; // Supabase-klient når siden er koblet til Supabase
 const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs, showLK: S.showLK, lagSel: S.lagSel, ukeLag: S.ukeLag, mobUke: S.mobUke })); } catch (e) {} };
-const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest"];
+const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest", "dommere", "dommeroppdrag"];
 
 // ---------- roller ----------
-const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener" };
+const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener", dommeransvarlig: "Dommeransvarlig" };
 const rolle = () => S.me?.rolle || null;
 const isAdmin = () => rolle() === "admin";
+const isDomAnsv = () => rolle() === "dommeransvarlig";
+const kanDommer = () => isAdmin() || isDomAnsv();
 const isTrainer = () => rolle() === "trener" || rolle() === "trener_pluss";
 const myLag = () => S.me?.lag || [];
 const isEnkelt = t => t?.type === "enkelt";
@@ -1415,14 +1449,14 @@ function renderAll() {
   computeMe(); renderLagSel();
   $("#lagList").innerHTML = (S.cfg.lag || []).map(l => `<option value="${esc(l)}"></option>`).join("");
   renderStatus(); applyRoleUI(); renderWeek(); renderSeason(); renderTrainList(); renderKampList(); renderImport(); renderOppsett();
-  renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); applyRo();
+  renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); if (S.view === "dommere") renderDommere(); applyRo();
 }
 function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").forEach(d => d.classList.toggle("addable", !erGjest(curA()) && (isAdmin() || canRequest()))); }
-const erBesok = () => !isAdmin() && !isTrainer();
+const erBesok = () => !isAdmin() && !isTrainer() && !isDomAnsv();
 function tabAllowed(v) {
   if (erBesok()) return v === "uke"; // besøkende ser bare uka
   const f = $(`nav.tabs [data-view="${v}"]`)?.dataset.for;
-  return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin());
+  return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin()) || (f === "dommer" && kanDommer());
 }
 function applyRoleUI() {
   document.body.classList.toggle("besok", erBesok());
@@ -1464,6 +1498,91 @@ function renderViewAs() {
   $("#viewAsSel").onchange = e => { S.viewAs = e.target.value; saveUi(); stopEdit(); renderAll(); };
 }
 
+// ---------- dommere ----------
+// Kortnavn av personvernhensyn: «Ola Nordmann» → «Ola N.»
+const kortNavn = n => { const d = String(n || "").trim().split(/\s+/); return d.length < 2 ? d[0] || "" : `${d[0]} ${d[d.length - 1][0].toUpperCase()}.`; };
+const DOMMERTYPER = ["5", "7", "9", "11"];
+const kampType = k => { const n = spillformKey(k.spillform) || "11"; return n === "3" ? "5" : n; };
+// Hvem dømmer: fra kretsen (fotball.no), lokal dommer (dommeroppdrag) eller ingen
+function dommerFor(id, k) {
+  if ((k.dommere || []).length) return { krets: true, tekst: k.dommere.map(d => `${d.navn}${d.klubb ? ` (${d.klubb})` : ""}`).join(", ") };
+  const o = S.dommeroppdrag[id]; if (o) return { lokal: true, tekst: o.navn, dommerId: o.dommerId };
+  return null;
+}
+function dommerValg(id, k) {
+  const typ = kampType(k), o = S.dommeroppdrag[id];
+  const kan = Object.entries(S.dommere).filter(([did, d]) => did === o?.dommerId || (d.aktiv !== false && (d.kamptyper || []).includes(typ))).sort(([, x], [, y]) => x.navn.localeCompare(y.navn, "nb"));
+  return `<select data-dommer="${esc(id)}" aria-label="Lokal dommer"><option value="">${o ? "Fjern dommer" : "Velg lokal dommer …"}</option>${kan.map(([did, d]) => `<option value="${esc(did)}"${did === o?.dommerId ? " selected" : ""}>${esc(d.navn)}${d.fodselsar ? ` (${d.fodselsar})` : ""}</option>`).join("")}</select>`;
+}
+function dommerSeksjon(id, k) {
+  const d = dommerFor(id, k);
+  return `<dl class="kv"><dt>Dommer</dt><dd>${d ? `${esc(d.tekst)}${d.krets ? ` <span class="muted">· fra kretsen</span>` : ` <span class="muted">· lokal dommer</span>`}` : `<span class="muted">Ingen dommer satt opp</span>`}</dd>
+    ${kanDommer() && !d?.krets ? `<dt></dt><dd>${dommerValg(id, k)}</dd>` : ""}</dl>`;
+}
+async function settDommer(kampId, dommerId) {
+  if (!dommerId) { await S.backend.del("dommeroppdrag", kampId); flash("Dommeren er fjernet fra kampen."); return; }
+  const d = S.dommere[dommerId]; if (!d) return;
+  await S.backend.put("dommeroppdrag", kampId, { kampId, dommerId, navn: kortNavn(d.navn), tildelt: new Date().toISOString() });
+  flash(`${esc(kortNavn(d.navn))} er satt opp som dommer.`);
+}
+function kobleDommerValg(el) {
+  el.querySelectorAll("[data-dommer]").forEach(sel => { sel.onchange = async () => { sel.disabled = true; try { await settDommer(sel.dataset.dommer, sel.value); } catch (e) { flash(esc(errText(e))); } sel.disabled = false; }; });
+}
+// Kamper på egne anlegg som kan trenge dommer: kamper fra fotball.no og treningskamper
+function dommerKamper(dager) {
+  const idag = ymd(new Date()), fra = dager < 0 ? ymd(addDays(new Date(), dager)) : idag, til = dager < 0 ? idag : ymd(addDays(new Date(), dager));
+  return Object.entries(S.kamper).filter(([, k]) => (erFotballKamp(k) || k.kilde === "treningskamp") && k.dato >= fra && k.dato <= til && !erGjest(anlegg(k.anleggId)))
+    .sort(([, x], [, y]) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
+}
+function renderDommere() {
+  if (!kanDommer()) return;
+  const typer = $("#df-typer"); if (!typer.children.length) typer.innerHTML = DOMMERTYPER.map(t => `<label class="check"><input type="checkbox" value="${t}"> ${t}er</label>`).join("");
+  const idag = ymd(new Date()), oppdrag = {};
+  for (const [kid, o] of Object.entries(S.dommeroppdrag)) if ((S.kamper[kid]?.dato || "") >= idag) oppdrag[o.dommerId] = (oppdrag[o.dommerId] || 0) + 1;
+  const ds = Object.entries(S.dommere).sort(([, x], [, y]) => (x.aktiv === false) - (y.aktiv === false) || x.navn.localeCompare(y.navn, "nb"));
+  $("#dList").innerHTML = ds.length ? ds.map(([id, d]) => `<tr class="click${d.aktiv === false ? " muted" : ""}" data-did="${esc(id)}"><td><b>${esc(d.navn)}</b>${d.aktiv === false ? ` <span class="muted">(ikke aktiv)</span>` : ""}</td><td>${esc(kortNavn(d.navn))}</td>
+      <td>${[d.telefon, d.epost].filter(Boolean).map(esc).join("<br>")}</td><td class="num">${esc(d.fodselsar || "")}</td><td>${(d.kamptyper || []).map(t => t + "er").join(", ")}</td><td class="num">${oppdrag[id] || ""}</td></tr>`).join("")
+    : `<tr><td colspan="6" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
+  // kamper
+  const bare = $("#dkMangler").checked, liste = dommerKamper(+$("#dkPeriode").value).filter(([id, k]) => !bare || !dommerFor(id, k) || S.dommeroppdrag[id]);
+  // samme dommer på to kamper samtidig
+  const tid = (id) => { const k = S.kamper[id], w = kampVindu(k); return w && { d: k.dato, s: w.start, e: w.end }; };
+  const dobbel = new Set(); const per = {}; for (const [kid, o] of Object.entries(S.dommeroppdrag)) (per[o.dommerId] ||= []).push(kid);
+  for (const ks of Object.values(per)) for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) { const a = tid(ks[i]), b = tid(ks[j]); if (a && b && a.d === b.d && a.s < b.e && b.s < a.e) { dobbel.add(ks[i]); dobbel.add(ks[j]); } }
+  $("#dkList").innerHTML = liste.length ? liste.map(([id, k]) => { const d = dommerFor(id, k), a = anlegg(k.anleggId);
+    return `<div class="dk${d ? "" : " mangler"}"><span class="num">${fmtDate(k.dato)} ${esc(k.tid)}</span>
+      <span><b>${esc((k.hjemmelag || "").trim())} – ${esc((k.bortelag || "").trim())}</b><br><span class="muted">${esc(kampType(k))}er · ${esc(delLabel(a, k.delbaneId))}, ${esc(a?.navn || "")}${k.kilde === "treningskamp" ? " · treningskamp" : ""}</span></span>
+      <span class="hvem">${d?.krets ? `<span class="krets">${esc(d.tekst)}</span><br><span class="muted">fra kretsen</span>` : `${dommerValg(id, k)}${dobbel.has(id) ? `<br><span class="warn">Dommeren har en annen kamp samtidig</span>` : ""}`}</span></div>`; }).join("")
+    : `<p class="note">${bare ? "Alle kampene i perioden har dommer." : "Ingen kamper i perioden."}</p>`;
+  kobleDommerValg($("#dkList"));
+}
+function initDommere() {
+  const f = $("#df"); let red = null;
+  const vis = (id) => { red = id; const d = id ? S.dommere[id] : {}; f.hidden = false; renderDommere();
+    $("#df-navn").value = d.navn || ""; $("#df-ar").value = d.fodselsar || ""; $("#df-tlf").value = d.telefon || ""; $("#df-epost").value = d.epost || ""; $("#df-aktiv").checked = d.aktiv !== false;
+    $$("#df-typer input").forEach(c => { c.checked = (d.kamptyper || []).includes(c.value); }); $("#df-slett").hidden = !id; $("#df-msg").textContent = ""; $("#df-navn").focus(); };
+  $("#dNy").onclick = () => vis(null);
+  $("#df-avbryt").onclick = () => { f.hidden = true; red = null; };
+  $("#dList").addEventListener("click", e => { const tr = e.target.closest("[data-did]"); if (tr) vis(tr.dataset.did); });
+  f.onsubmit = async e => {
+    e.preventDefault(); const navn = $("#df-navn").value.replace(/\s+/g, " ").trim(), msg = $("#df-msg");
+    if (navn.split(" ").length < 2) { msg.innerHTML = `<span class="err">Skriv fornavn og etternavn.</span>`; return; }
+    const kamptyper = $$("#df-typer input:checked").map(c => c.value); if (!kamptyper.length) { msg.innerHTML = `<span class="err">Velg minst én kamptype.</span>`; return; }
+    const d = { navn, fodselsar: +$("#df-ar").value || null, telefon: $("#df-tlf").value.trim(), epost: $("#df-epost").value.trim().toLowerCase(), kamptyper, aktiv: $("#df-aktiv").checked };
+    try {
+      const id = red || "dom-" + uid(); await S.backend.put("dommere", id, d);
+      // kortnavnet på kommende oppdrag følger med hvis navnet endres
+      for (const [kid, o] of Object.entries(S.dommeroppdrag)) if (o.dommerId === id && o.navn !== kortNavn(navn)) await S.backend.put("dommeroppdrag", kid, { ...o, navn: kortNavn(navn) });
+      f.hidden = true; red = null; flash(`${esc(navn)} er lagret.`); renderDommere();
+    } catch (er) { msg.innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+  };
+  confirmBtn($("#df-slett"), "Bekreft sletting", async () => {
+    const id = red; if (!id) return;
+    for (const [kid, o] of Object.entries(S.dommeroppdrag)) if (o.dommerId === id) await S.backend.del("dommeroppdrag", kid);
+    await S.backend.del("dommere", id); f.hidden = true; red = null; flash("Dommeren er slettet, og oppdragene er fjernet."); renderDommere();
+  });
+  ["#dkPeriode", "#dkMangler"].forEach(x => $(x).onchange = renderDommere);
+}
 // Hvilket lag i banedagboken en kamp fra fotball.no hører til (via koblingene under Lag)
 let _klSrc = null, _klMap = new Map();
 function kampLagMap() {
@@ -1772,6 +1891,7 @@ function showKamp(id) {
           : `<dt>${tk ? "Type" : "Turnering"}</dt><dd>${tk ? `<span class="pill tkamp">Treningskamp</span>` : esc(k.turnering || "")}</dd><dt>Spillform</dt><dd>${esc(k.spillform || "")}</dd>${tk && k.merknad && showMerknad() ? `<dt>Merknad</dt><dd>${esc(k.merknad)}</dd>` : ""}${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}`}</dl>
         ${man ? "" : tk ? `<p class="note">Treningskampen er lagt inn i banedagboken og finnes ikke på fotball.no.</p>` : `${fb && k.kampnr ? `<dl class="kv"><dt>Kampnr.</dt><dd class="num">${esc(k.kampnr)}</dd><dt>Bane (fotball.no)</dt><dd>${esc(k.baneNavn || "")}</dd>${k.resultat && k.resultat.trim() !== "-" ? `<dt>Resultat</dt><dd class="num">${esc(k.resultat)}</dd>` : ""}</dl>` : ""}<p class="note">Kampen er hentet fra fotball.no og kan ikke endres eller slettes her. Banen er reservert fra ${FORVARMING} minutter før kampstart. ${isAdmin() ? "Hvilken del av banen kampene havner på, styres av koblingene under Baner. " : ""}Skal kampen flyttes, søker du om omberamming <a href="https://www.fotball.no/lov-og-reglement/skjemaer-og-kontrakter/omberamming/" target="_blank" rel="noopener">her</a>.</p>`}`,
       !fb && canDeleteBooking(k) ? `<span class="spacer"></span><button class="btn danger" id="kDel">${tk ? "Avlys treningskampen" : "Slett booking"}</button>` : "");
+    if (!man) { $("#dlgBody").insertAdjacentHTML("beforeend", dommerSeksjon(id, k)); kobleDommerValg($("#dlgBody")); }
     if ($("#kDel")) confirmBtn($("#kDel"), tk ? "Bekreft: avlys" : "Bekreft sletting", async () => { await S.backend.del("kamper", id); dlg.close(); if (tk) flash(`Treningskampen ${fmtDate(k.dato)} er avlyst.`); });
     return;
   }
@@ -3081,10 +3201,11 @@ function initOppsett() {
 // ---------- navigation & events ----------
 function show(v) {
   S.view = v; $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const id of ["uke", "treninger", "plan", "lag", "foresporsler", "kamper", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
+  for (const id of ["uke", "treninger", "plan", "lag", "foresporsler", "kamper", "dommere", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
   if (v === "lag") renderLag();
   if (v === "uke") renderWeek();
   if (v === "plan") renderPlan();
+  if (v === "dommere") renderDommere();
 }
 $$("nav.tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#ukeLag").onchange = e => { S.ukeLag = e.target.value || null; saveUi(); renderWeek(); };
@@ -3128,7 +3249,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initMerking(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
+initMerking(); initDommere(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {
