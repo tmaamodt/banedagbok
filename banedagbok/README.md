@@ -155,14 +155,16 @@ Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholde
 
 ## Dommere
 
-**Dommer fra kretsen:** skriptet henter hver natt dommerne fra kampsiden på fotball.no for kommende kamper (3 dager tilbake til 4 uker fram) på egne anlegg. Kampsiden finnes via lagsidene til klubbene i oppsettet. Dommeren vises i kampvinduet med klubb, for eksempel «Lucas B. (Raumnes & Årnes Idrettslag) · fra kretsen».
+**Dommer fra kretsen:** skriptet henter hver natt dommerne fra kampsiden på fotball.no for kommende kamper (3 dager tilbake til 4 uker fram) på egne anlegg. Kampsiden finnes via lagsidene til klubbene i oppsettet. Dommeren vises med fullt navn, siden det er åpen informasjon på fotball.no, for eksempel «Lucas Oliver Bexrud · fra kretsen».
+
+**Har kampen dommer?** For innloggede står det i kampboksen i uka om kampen har dommer («Dommer: …») eller er «Uten dommer». Besøkende ser dommeren i kampvinduet.
 
 **Lokale dommere:** har kampen ingen dommer fra kretsen, kan dommeransvarlig (eller admin) sette opp en lokal dommer. Det gjøres på fanen **Dommere**, eller rett i kampvinduet.
 
-- **Dommerregisteret:** navn, telefon, e-post, fødselsår og hvilke kamptyper dommeren kan dømme (5er, 7er, 9er, 11er). Dommere kan merkes som ikke aktive.
+- **Dommerregisteret:** navn, telefon, e-post, fødselsår, hvilke kamptyper dommeren kan dømme (5er, 7er, 9er, 11er) og kompetanse (klubbdommer, kretsdommer). Dommere kan merkes som ikke aktive.
 - **Kamper og dommere:** hjemmekamper og treningskamper på egne anlegg for valgt periode, med valg av lokal dommer. Lista viser bare aktive dommere som kan dømme kamptypen. Det kommer varsel hvis samme dommer er satt opp på to kamper samtidig.
 
-**Personvern:** navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin. Alle andre ser bare fornavn og første bokstav i etternavnet, for eksempel «Ola N.». Det gjelder også dommere fra kretsen. Databasen stopper andre fra å lese dommerregisteret.
+**Personvern:** navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin. Alle andre ser bare fornavn og første bokstav i etternavnet på lokale dommere, for eksempel «Ola N.». Dommere fra kretsen vises med fullt navn. Databasen stopper andre fra å lese dommerregisteret.
 
 ## Gjesteanlegg (Hoopit)
 

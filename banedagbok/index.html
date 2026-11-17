@@ -542,10 +542,11 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <label>Telefon<input type="tel" id="df-tlf"></label>
           <label>E-post<input type="email" id="df-epost"></label>
           <div style="grid-column:1/-1;display:grid;gap:4px"><span class="note">Kan dømme</span><div class="bar" id="df-typer"></div></div>
+          <div style="grid-column:1/-1;display:grid;gap:4px"><span class="note">Kompetanse</span><div class="bar" id="df-komp"><label class="check"><input type="checkbox" value="klubbdommer"> Klubbdommer</label><label class="check"><input type="checkbox" value="kretsdommer"> Kretsdommer</label></div></div>
           <label class="check" style="grid-column:1/-1"><input type="checkbox" id="df-aktiv" checked> Aktiv (kan settes opp på kamper)</label>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit" id="df-lagre">Lagre dommer</button><button class="btn ghost" type="button" id="df-avbryt">Avbryt</button><button class="btn danger" type="button" id="df-slett" hidden>Slett dommer</button><span class="note" id="df-msg"></span></div>
         </form>
-        <div class="tablewrap"><table><thead><tr><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th class="num">Oppdrag</th></tr></thead><tbody id="dList"></tbody></table></div>
+        <div class="tablewrap"><table><thead><tr><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th>Kompetanse</th><th class="num">Oppdrag</th></tr></thead><tbody id="dList"></tbody></table></div>
       </div>
       <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
         <div class="bar"><h2>Kamper og dommere</h2><span class="spacer"></span>
@@ -1138,7 +1139,9 @@ function occurrences(weekStart, aId, bId) {
     const w = kampVindu(k);
     out.push({ type: manual ? "booking" : tk ? "tkamp" : "kamp", id, date: k.dato, start: w.start, end: w.end, kick: w.kick, del: k.delbaneId,
       label: manual ? (k.tittel || "Booking") : `${(k.hjemmelag || "").trim()} – ${(k.bortelag || "").trim()}`,
-      sub: manual ? (showMerknad() ? (k.merknad || "") : "") : tk ? "Treningskamp" : [`Kampstart ${fromMin(w.kick)}`, k.turnering || ""].filter(Boolean).join(" · "), src: k });
+      sub: [manual ? (showMerknad() ? (k.merknad || "") : "") : tk ? "Treningskamp" : [`Kampstart ${fromMin(w.kick)}`, k.turnering || ""].filter(Boolean).join(" · "),
+        // innloggede ser om kampen har dommer
+        !manual && !erBesok() && !erGjest(A) ? (dommerFor(id, k) ? `Dommer: ${dommerFor(id, k).tekst}` : "Uten dommer") : ""].filter(Boolean).join(" · "), src: k });
   }
   if (erGjest(A)) out.push(...gjestItems(A, days, bId, out));
   for (const [id, r] of Object.entries(S.foresporsler)) {
@@ -1502,17 +1505,18 @@ function renderViewAs() {
 // Kortnavn av personvernhensyn: «Ola Nordmann» → «Ola N.»
 const kortNavn = n => { const d = String(n || "").trim().split(/\s+/); return d.length < 2 ? d[0] || "" : `${d[0]} ${d[d.length - 1][0].toUpperCase()}.`; };
 const DOMMERTYPER = ["5", "7", "9", "11"];
+const KOMPETANSE = { klubbdommer: "Klubbdommer", kretsdommer: "Kretsdommer" };
 const kampType = k => { const n = spillformKey(k.spillform) || "11"; return n === "3" ? "5" : n; };
 // Hvem dømmer: fra kretsen (fotball.no), lokal dommer (dommeroppdrag) eller ingen
 function dommerFor(id, k) {
-  if ((k.dommere || []).length) return { krets: true, tekst: k.dommere.map(d => `${d.navn}${d.klubb ? ` (${d.klubb})` : ""}`).join(", ") };
+  if ((k.dommere || []).length) return { krets: true, tekst: k.dommere.map(d => `${d.navn}${d.rolle && d.rolle !== "Dommer" ? ` (${d.rolle.toLowerCase()})` : ""}`).join(", ") };
   const o = S.dommeroppdrag[id]; if (o) return { lokal: true, tekst: o.navn, dommerId: o.dommerId };
   return null;
 }
 function dommerValg(id, k) {
   const typ = kampType(k), o = S.dommeroppdrag[id];
   const kan = Object.entries(S.dommere).filter(([did, d]) => did === o?.dommerId || (d.aktiv !== false && (d.kamptyper || []).includes(typ))).sort(([, x], [, y]) => x.navn.localeCompare(y.navn, "nb"));
-  return `<select data-dommer="${esc(id)}" aria-label="Lokal dommer"><option value="">${o ? "Fjern dommer" : "Velg lokal dommer …"}</option>${kan.map(([did, d]) => `<option value="${esc(did)}"${did === o?.dommerId ? " selected" : ""}>${esc(d.navn)}${d.fodselsar ? ` (${d.fodselsar})` : ""}</option>`).join("")}</select>`;
+  return `<select data-dommer="${esc(id)}" aria-label="Lokal dommer"><option value="">${o ? "Fjern dommer" : "Velg lokal dommer …"}</option>${kan.map(([did, d]) => `<option value="${esc(did)}"${did === o?.dommerId ? " selected" : ""}>${esc(d.navn)}${d.fodselsar ? ` (${d.fodselsar})` : ""}${(d.kompetanse || []).includes("kretsdommer") ? " · kretsdommer" : (d.kompetanse || []).includes("klubbdommer") ? " · klubbdommer" : ""}</option>`).join("")}</select>`;
 }
 function dommerSeksjon(id, k) {
   const d = dommerFor(id, k);
@@ -1541,8 +1545,8 @@ function renderDommere() {
   for (const [kid, o] of Object.entries(S.dommeroppdrag)) if ((S.kamper[kid]?.dato || "") >= idag) oppdrag[o.dommerId] = (oppdrag[o.dommerId] || 0) + 1;
   const ds = Object.entries(S.dommere).sort(([, x], [, y]) => (x.aktiv === false) - (y.aktiv === false) || x.navn.localeCompare(y.navn, "nb"));
   $("#dList").innerHTML = ds.length ? ds.map(([id, d]) => `<tr class="click${d.aktiv === false ? " muted" : ""}" data-did="${esc(id)}"><td><b>${esc(d.navn)}</b>${d.aktiv === false ? ` <span class="muted">(ikke aktiv)</span>` : ""}</td><td>${esc(kortNavn(d.navn))}</td>
-      <td>${[d.telefon, d.epost].filter(Boolean).map(esc).join("<br>")}</td><td class="num">${esc(d.fodselsar || "")}</td><td>${(d.kamptyper || []).map(t => t + "er").join(", ")}</td><td class="num">${oppdrag[id] || ""}</td></tr>`).join("")
-    : `<tr><td colspan="6" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
+      <td>${[d.telefon, d.epost].filter(Boolean).map(esc).join("<br>")}</td><td class="num">${esc(d.fodselsar || "")}</td><td>${(d.kamptyper || []).map(t => t + "er").join(", ")}</td><td>${(d.kompetanse || []).map(x => KOMPETANSE[x] || x).join(", ")}</td><td class="num">${oppdrag[id] || ""}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
   // kamper
   const bare = $("#dkMangler").checked, liste = dommerKamper(+$("#dkPeriode").value).filter(([id, k]) => !bare || !dommerFor(id, k) || S.dommeroppdrag[id]);
   // samme dommer på to kamper samtidig
@@ -1560,7 +1564,8 @@ function initDommere() {
   const f = $("#df"); let red = null;
   const vis = (id) => { red = id; const d = id ? S.dommere[id] : {}; f.hidden = false; renderDommere();
     $("#df-navn").value = d.navn || ""; $("#df-ar").value = d.fodselsar || ""; $("#df-tlf").value = d.telefon || ""; $("#df-epost").value = d.epost || ""; $("#df-aktiv").checked = d.aktiv !== false;
-    $$("#df-typer input").forEach(c => { c.checked = (d.kamptyper || []).includes(c.value); }); $("#df-slett").hidden = !id; $("#df-msg").textContent = ""; $("#df-navn").focus(); };
+    $$("#df-typer input").forEach(c => { c.checked = (d.kamptyper || []).includes(c.value); });
+    $$("#df-komp input").forEach(c => { c.checked = (d.kompetanse || []).includes(c.value); }); $("#df-slett").hidden = !id; $("#df-msg").textContent = ""; $("#df-navn").focus(); };
   $("#dNy").onclick = () => vis(null);
   $("#df-avbryt").onclick = () => { f.hidden = true; red = null; };
   $("#dList").addEventListener("click", e => { const tr = e.target.closest("[data-did]"); if (tr) vis(tr.dataset.did); });
@@ -1568,7 +1573,7 @@ function initDommere() {
     e.preventDefault(); const navn = $("#df-navn").value.replace(/\s+/g, " ").trim(), msg = $("#df-msg");
     if (navn.split(" ").length < 2) { msg.innerHTML = `<span class="err">Skriv fornavn og etternavn.</span>`; return; }
     const kamptyper = $$("#df-typer input:checked").map(c => c.value); if (!kamptyper.length) { msg.innerHTML = `<span class="err">Velg minst én kamptype.</span>`; return; }
-    const d = { navn, fodselsar: +$("#df-ar").value || null, telefon: $("#df-tlf").value.trim(), epost: $("#df-epost").value.trim().toLowerCase(), kamptyper, aktiv: $("#df-aktiv").checked };
+    const d = { navn, fodselsar: +$("#df-ar").value || null, telefon: $("#df-tlf").value.trim(), epost: $("#df-epost").value.trim().toLowerCase(), kamptyper, kompetanse: $$("#df-komp input:checked").map(c => c.value), aktiv: $("#df-aktiv").checked };
     try {
       const id = red || "dom-" + uid(); await S.backend.put("dommere", id, d);
       // kortnavnet på kommende oppdrag følger med hvis navnet endres

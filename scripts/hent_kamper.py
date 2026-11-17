@@ -22,7 +22,7 @@ Hva skriptet gjør:
      dem samlet per klubb og måned i tabellen lagkamper. Brukes av treningsgruppene og til å
      se om et lag har kamp et annet sted i treningstiden.
   8. Henter dommere fra kampsidene på fotball.no for kommende kamper på egne anlegg, og lagrer
-     dem på kampen (bare fornavn og første bokstav i etternavnet, og klubben).
+     dem på kampen med rolle og navn (åpen informasjon på fotball.no).
   7. Henter treninger og bookinger for gjesteanlegg fra Hoopit (anlegg med gjest = true og en
      Hoopit-kalender, baner med Hoopit-bane-ID) og lagrer dem per bane og måned i tabellen gjest.
      Kampene som Hoopit har hentet fra fotball.no, hoppes over: de kommer fra fotball.no i punkt 2.
@@ -446,12 +446,6 @@ def hent_side(sti: str) -> str:
     raise RuntimeError("unreachable")
 
 
-def kort_navn(navn: str) -> str:
-    """Personvern: bare første fornavn og første bokstav i etternavnet («Lucas Oliver Bexrud» → «Lucas B.»)."""
-    deler = navn.split()
-    return deler[0] if len(deler) < 2 else f"{deler[0]} {deler[-1][0]}."
-
-
 def les_dommere(side: str) -> list[dict]:
     """Dommerfanen på kampsiden: rader med rolle, navn og klubb."""
     import html as _html
@@ -462,7 +456,7 @@ def les_dommere(side: str) -> list[dict]:
     for rad in re.findall(r"<tr[^>]*>(.*?)</tr>", m.group(1), re.S):
         celler = [_html.unescape(re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", rad, re.S)]
         if len(celler) >= 2 and celler[1]:
-            ut.append({"rolle": celler[0] or "Dommer", "navn": kort_navn(celler[1]), "klubb": celler[2] if len(celler) > 2 else ""})
+            ut.append({"rolle": celler[0] or "Dommer", "navn": celler[1]})  # åpen informasjon på fotball.no
     return ut
 
 
