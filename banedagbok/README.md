@@ -59,7 +59,7 @@ Når admin godkjenner en forespørsel, blir den automatisk en treningstid. Fanen
 
 **Besøkende** ser en enkel side med bare uka: valg av bane og lag, uke fram og tilbake, ukevisningen og en forklaring på fargene. Fanene, sesongstripa og verktøyene for innloggede er skjult. Tidsaksen tilpasses aktivitetene, så tomme formiddager ikke tar plass.
 
-**På mobil** vises én dag om gangen, med en rad med ukedagene over for å bytte dag. Dagen i dag er valgt når siden åpnes. Sesongstripa er skjult på mobil.
+**På mobil** vises én dag om gangen, med en rad med ukedagene over for å bytte dag. Dagen i dag er valgt når siden åpnes. Sesongstripa er skjult på mobil. Kryss av for **«Vis hele uka»** for å se alle sju dagene samtidig, som på PC. Da er kolonnene smale og uten kvartinndeling, men blokkene ligger fortsatt på riktig del av banen, så du ser hvor det er ledig. Kvartbokser vises bare med farge, og et trykk på en blokk viser detaljene. Trykk på et dagnavn for å gå tilbake til den dagen. Valget huskes til neste gang.
 
 **Kollisjoner** vises i selve boksene, ikke som varsler over uka. Når to treninger krasjer, eller kamper og bookinger krasjer med hverandre, blir boksene røde. Boksene som overlapper, legges oppå hverandre med litt forskyvning, så alle kan klikkes.
 

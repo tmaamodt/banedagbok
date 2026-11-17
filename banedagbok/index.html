@@ -98,6 +98,21 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
   .dayhead .tilbake { display: none }
   .season { display: none }
 }
+/* Mobil, hele uka: sju smale kolonner som viser hva som er opptatt, uten kvartinndeling og med kort tekst */
+.mobuke { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600 }
+.mobuke input { width: 18px; height: 18px }
+.grid.kompakt { grid-template-columns: 30px repeat(7, minmax(0, 1fr)); min-width: 0 }
+.grid.kompakt .lanes, .grid.kompakt .blk .k, .grid.kompakt .blk .s { display: none }
+.grid.kompakt .dayhead { padding: 6px 2px 4px; text-align: center; border-left-width: 2px }
+.grid.kompakt .dayhead button { display: grid; gap: 0; justify-items: center }
+.grid.kompakt .dayhead b { font-size: 13px }
+.grid.kompakt .dayhead .num { font-size: 10px }
+.grid.kompakt .day { border-left-width: 2px; background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px var(--hour)) }
+.grid.kompakt .blk { padding: 1px 2px; border-radius: 3px; left: calc(var(--l) + 1px) !important; width: calc(var(--w) - 2px) !important }
+.grid.kompakt .blk .l { font-size: 9px; line-height: 1.1; white-space: normal; overflow-wrap: anywhere }
+.grid.kompakt .blk.halv .l { white-space: nowrap; overflow: hidden; text-overflow: clip }
+.grid.kompakt .blk.kvart .l { display: none }
+.grid.kompakt .times span { font-size: 9px; right: 3px }
 /* Én dag: vanlig strek, ikke den tykke dagskillet */
 .grid.one .day, .grid.one .dayhead { border-left: 1px solid var(--line) }
 /* Season strip */
@@ -382,6 +397,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     </div>
     <div class="alerts" id="alerts"></div>
     <div class="lkpanel" id="lkPanel" hidden></div>
+    <label class="mobuke" id="mobUkeWrap" hidden><input type="checkbox" id="mobUke"> Vis hele uka</label>
     <div class="daypick" id="dayPick" role="group" aria-label="Velg dag" hidden></div>
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
     <div class="legend ukelegend" aria-label="Forklaring"><span><i style="background:var(--match)"></i>Kamp</span><span><i style="background:var(--friendly)"></i>Treningskamp</span><span><i style="background:var(--train)"></i>Trening</span><span><i style="background:var(--pitch-soft);border:1px solid var(--pitch)"></i>Booking</span><span><i style="background:var(--conflict-soft);border:1px solid var(--conflict)"></i>Kollisjon</span><span><i class="avl"></i>Faller bort</span></div>
@@ -725,9 +741,9 @@ const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}
   user: null,        // Supabase-innlogging
   canWrite: true,    // Claude-artefakt: false for de som bare kan lese
   viewAs: "eier" };  // testmodus: hvem siden vises som
-try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; S.showLK = !!u.showLK; S.lagSel = u.lagSel || null; S.ukeLag = u.ukeLag || null; } } catch (e) {}
+try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; S.showLK = !!u.showLK; S.lagSel = u.lagSel || null; S.ukeLag = u.ukeLag || null; S.mobUke = !!u.mobUke; } } catch (e) {}
 let SB = null; // Supabase-klient når siden er koblet til Supabase
-const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs, showLK: S.showLK, lagSel: S.lagSel, ukeLag: S.ukeLag })); } catch (e) {} };
+const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs, showLK: S.showLK, lagSel: S.lagSel, ukeLag: S.ukeLag, mobUke: S.mobUke })); } catch (e) {} };
 const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest"];
 
 // ---------- roller ----------
@@ -1491,10 +1507,12 @@ function renderWeek() {
   const today = ymd(new Date());
   const smal = matchMedia("(max-width: 720px)").matches;
   if (smal && S.mobDag == null) { const i = Math.round((parseYmd(today) - ws) / 864e5); S.mobDag = i >= 0 && i < 7 ? i : 0; }
-  const dag = S.day ?? (smal ? S.mobDag : null);
+  const kompakt = smal && S.mobUke && S.day == null;
+  const dag = S.day ?? (smal && !S.mobUke ? S.mobDag : null);
   const idx = dag == null ? [0, 1, 2, 3, 4, 5, 6] : [dag];
-  grid.classList.toggle("one", dag != null);
-  $("#dayPick").hidden = !smal;
+  grid.classList.toggle("one", dag != null); grid.classList.toggle("kompakt", kompakt);
+  $("#mobUkeWrap").hidden = !smal; $("#mobUke").checked = !!S.mobUke;
+  $("#dayPick").hidden = !smal || kompakt;
   if (smal) $("#dayPick").innerHTML = [0, 1, 2, 3, 4, 5, 6].map(i => { const d = addDays(ws, i);
     return `<button type="button" data-mdag="${i}" aria-pressed="${i === dag}" class="${ymd(d) === today ? "today" : ""}">${DAGER[i].slice(0, 3)}<span>${d.getDate()}.${d.getMonth() + 1}</span></button>`; }).join("");
   { const vis = new Set(idx.map(i => ymd(addDays(ws, i)))), synlig = items.filter(x => vis.has(x.date)), ms = synlig.map(x => x.start), me = synlig.map(x => x.end); // bare dagene som vises
@@ -1504,7 +1522,7 @@ function renderWeek() {
   const H = (DAY_END - DAY_START) / 60; const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   let html = `<div class="corner"></div>`;
   for (const i of idx) { const d = addDays(ws, i); const ds = ymd(d);
-    html += `<div class="dayhead${ds === today ? " today" : ""}"><button data-dayidx="${i}" title="${S.day == null ? "Vis hele dagen" : "Tilbake til hele uka"}"><b>${DAGER[i]}</b> <span class="num muted">${d.getDate()}.${d.getMonth() + 1}</span>${S.day != null ? `<span class="muted tilbake">· ← hele uka</span>` : ""}</button>
+    html += `<div class="dayhead${ds === today ? " today" : ""}"><button data-dayidx="${i}" title="${S.day == null ? "Vis hele dagen" : "Tilbake til hele uka"}"><b>${kompakt ? DAGER[i].slice(0, 3) : DAGER[i]}</b> <span class="num muted">${d.getDate()}.${d.getMonth() + 1}</span>${S.day != null ? `<span class="muted tilbake">· ← hele uka</span>` : ""}</button>
       <div class="lanes" aria-hidden="true">${laneLabels(a, bane?.id)}</div></div>`; }
   html += `<div class="times" style="height:${H * hpx}px">${[...Array(H + 1)].map((_, h) => h === 0 ? "" : `<span style="top:${h * hpx}px">${pad(DAY_START / 60 + h)}</span>`).join("")}</div>`;
   for (const i of idx) {
@@ -1516,8 +1534,9 @@ function renderWeek() {
       const top = Math.max(0, (it.start - DAY_START) / 60 * hpx), bot = Math.min(H * hpx, (it.end - DAY_START) / 60 * hpx);
       const d = delbane(a, it.del);
       const title = `${fromMin(it.start)}–${fromMin(it.end)} · ${d ? d.navn : "?"} · ${it.label}${it.sub ? " · " + it.sub : ""}${it.avlyst ? " (avlyst)" : ""}${it.konflikt ? " · KOLLISJON" : ""}${it.viker ? " · viker for " + it.viker.label : ""}${it.borte ? ` · ${it.borte.status === "borte" ? "trolig ledig" : "delvis borte"}: ` + it.borte.hits.map(h => `${h.lag} ${h.hjemme ? "hjemme" : "borte"} kl. ${h.tid}`).join(", ") : ""}`;
-      html += `<button class="blk ${it.type}${it.lane ? " lag2" : ""}${it.annet ? " annet" : ""}${it.gkamp ? " gkamp" : ""}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}${it.borte ? " " + it.borte.status : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
-        style="top:${top + 1}px;height:${Math.max(18, bot - top - 2)}px;left:calc(${zs / 12 * 100}% + ${2 + skyv}px);width:calc(${(ze - zs) / 12 * 100}% - ${4 + skyv}px);z-index:${1 + (it.lane || 0)}" title="${esc(title)}">
+      const bredde = ze - zs; // i tolvdeler
+      html += `<button class="blk ${it.type}${kompakt ? (bredde <= 3 ? " kvart" : bredde <= 6 ? " halv" : "") : ""}${it.lane ? " lag2" : ""}${it.annet ? " annet" : ""}${it.gkamp ? " gkamp" : ""}${it.enkelt ? " enkelt" : ""}${it.avlyst ? " avlyst" : ""}${it.konflikt ? " konflikt" : ""}${it.viker && !it.konflikt ? " viker" : ""}${it.borte ? " " + it.borte.status : ""}" data-type="${it.type}" data-id="${esc(it.id)}" data-date="${ds}"
+        style="top:${top + 1}px;height:${Math.max(18, bot - top - 2)}px;--l:${zs / 12 * 100}%;--w:${(ze - zs) / 12 * 100}%;left:calc(${zs / 12 * 100}% + ${2 + skyv}px);width:calc(${(ze - zs) / 12 * 100}% - ${4 + skyv}px);z-index:${1 + (it.lane || 0)}" title="${esc(title)}">
         <span class="k">${fromMin(it.start)} ${esc(d ? d.navn : "")}</span><span class="l">${esc(it.label)}</span>${it.borte ? `<span class="s" style="color:var(--pitch);font-weight:600">${it.borte.status === "borte" ? "Trolig ledig" : "Delvis borte"}</span>` : ""}${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
     }
     html += `</div>`;
@@ -3070,6 +3089,7 @@ function show(v) {
 $$("nav.tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#ukeLag").onchange = e => { S.ukeLag = e.target.value || null; saveUi(); renderWeek(); };
 $("#anleggSel").onchange = e => { const [aId, bId] = e.target.value.split("|"); S.anleggId = aId; S.baneId = bId; saveUi(); renderAll(); };
+$("#mobUke").onchange = e => { S.mobUke = e.target.checked; S.day = null; saveUi(); renderWeek(); };
 $("#dayPick").addEventListener("click", e => { const b = e.target.closest("[data-mdag]"); if (!b) return; S.mobDag = +b.dataset.mdag; S.day = null; renderWeek(); });
 { let smal = matchMedia("(max-width: 720px)").matches; addEventListener("resize", () => { const n = matchMedia("(max-width: 720px)").matches; if (n !== smal) { smal = n; renderWeek(); } }); }
 $("#prevW").onclick = () => { S.week = addDays(S.week, -7); renderWeek(); renderSeason(); };
@@ -3089,7 +3109,7 @@ $("#tlMine").onchange = renderTrainList;
 $("#rList").addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (!b) return; handleRequest(b.closest("[data-rid]").dataset.rid, b.dataset.act, b); });
 $("#grid").addEventListener("click", e => {
   const dh = e.target.closest("[data-dayidx]");
-  if (dh) { S.day = S.day == null ? +dh.dataset.dayidx : null; renderWeek(); return; }
+  if (dh) { if (matchMedia("(max-width: 720px)").matches) { S.mobUke = false; S.mobDag = +dh.dataset.dayidx; S.day = null; saveUi(); } else S.day = S.day == null ? +dh.dataset.dayidx : null; renderWeek(); return; }
   const b = e.target.closest(".blk");
   if (S.ikkeKlikk) { S.ikkeKlikk = false; return; }
   if (b) { if (b.dataset.type === "trening") showTraining(b.dataset.id, b.dataset.date); else if (b.dataset.type === "gjest") showGjest(b.dataset.id); else if (b.dataset.type === "foresp") show("foresporsler"); else showKamp(b.dataset.id); return; }
