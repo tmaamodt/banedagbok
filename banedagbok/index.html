@@ -72,6 +72,34 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted) }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px }
 
+/* Besøkende: bare uka, uten verktøy de ikke trenger */
+.besok nav.tabs, .besok .season, .besok #jumpPrev, .besok #jumpNext, .besok .lkvalg, .besok #status, .besok .alert.info { display: none !important }
+#v-uke > .bar:first-child { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px }
+.ukelegend { gap: 8px 16px; font-size: 12px }
+.ukelegend i.avl { background: repeating-linear-gradient(135deg, var(--train-soft) 0 3px, var(--line) 3px 4px); border: 1px dashed var(--muted) }
+.daypick { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px }
+.daypick button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 0; display: grid; gap: 1px; font: 600 13px var(--f-display); color: var(--muted); text-transform: capitalize }
+.daypick button span { font: 500 11px var(--f-mono) }
+.daypick button.today { border-color: var(--pitch) }
+.daypick button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+@media (max-width: 720px) {
+  .wrap { padding-block: 12px 32px; gap: 12px }
+  h1 { font-size: 22px }
+  .brand small { font-size: 13px }
+  header.top { align-items: flex-start }
+  #v-uke { gap: 12px !important }
+  #v-uke > .bar:first-child { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; padding: 10px }
+  #v-uke > .bar:first-child > select { grid-column: 1 / -1; max-width: none !important; width: 100% }
+  #v-uke > .bar:first-child .spacer, #jumpPrev, #jumpNext { display: none }
+  #v-uke > .bar:first-child .lkvalg, #addBook { grid-column: 1 / -1 }
+  .weeklabel { font-size: 22px; text-align: center; min-width: 0 }
+  .weeklabel span { display: block; margin: 0; font-size: 12px }
+  .grid.one { grid-template-columns: 40px 1fr }
+  .dayhead .tilbake { display: none }
+  .season { display: none }
+}
+/* Én dag: vanlig strek, ikke den tykke dagskillet */
+.grid.one .day, .grid.one .dayhead { border-left: 1px solid var(--line) }
 /* Season strip */
 .season { display: grid; gap: 6px }
 .strip { display: flex; gap: 2px; align-items: flex-end; height: 46px; overflow-x: auto; padding-bottom: 2px }
@@ -340,7 +368,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
       <button class="btn" id="nextW" aria-label="Neste uke">→</button>
       <button class="btn ghost" id="todayW">I dag</button>
       <span class="spacer"></span>
-      <label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="showLK"> Vis lagenes kamper</label>
+      <label class="note lkvalg" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="showLK"> Vis lagenes kamper</label>
       <button class="btn" id="jumpPrev" title="Forrige uke med aktivitet">⇤ Forrige aktivitet</button>
       <button class="btn" id="jumpNext" title="Neste uke med aktivitet">Neste aktivitet ⇥</button>
       <button class="btn primary" id="addBook" hidden>Booking</button>
@@ -354,8 +382,10 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     </div>
     <div class="alerts" id="alerts"></div>
     <div class="lkpanel" id="lkPanel" hidden></div>
+    <div class="daypick" id="dayPick" role="group" aria-label="Velg dag" hidden></div>
     <div class="gridwrap"><div class="grid" id="grid"></div></div>
-    <p class="note">Hver dagskolonne er banen sett ovenfra: venstre og høyre halvdel er skilt med midtlinjen. En kamp på «7er A» tar bare sin del av bredden, så du ser hvor det er plass til trening samtidig. Klikk på et dagnavn for å se dagen i full bredde<span id="ukeNoteClick"></span>.</p>
+    <div class="legend ukelegend" aria-label="Forklaring"><span><i style="background:var(--match)"></i>Kamp</span><span><i style="background:var(--friendly)"></i>Treningskamp</span><span><i style="background:var(--train)"></i>Trening</span><span><i style="background:var(--pitch-soft);border:1px solid var(--pitch)"></i>Booking</span><span><i style="background:var(--conflict-soft);border:1px solid var(--conflict)"></i>Kollisjon</span><span><i class="avl"></i>Faller bort</span></div>
+    <p class="note ukenote">Hver dag er banen sett ovenfra, delt i kvarter A–D. En kamp eller trening tar bare sin del av bredden. Trykk på en aktivitet for detaljer, og på et dagnavn for å se dagen alene<span id="ukeNoteClick"></span>.</p>
   </section>
 
   <!-- TRENINGER -->
@@ -683,7 +713,8 @@ const MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt
 const fmtDate = s => { if (!/^\d{4}-\d{2}-\d{2}/.test(s || "")) return "?"; const d = parseYmd(s); return `${DAGER[(d.getDay() + 6) % 7].slice(0, 3)} ${d.getDate()}. ${MND[d.getMonth()]}`; };
 const uid = () => { const r = new Uint8Array(9); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(r) : r.forEach((_, i) => { r[i] = Math.random() * 256; }); return [...r].map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 14); };
 const clone = o => JSON.parse(JSON.stringify(o));
-const DAY_START = 8 * 60, DAY_END = 23 * 60;
+// Tidsaksen i uka tilpasses aktivitetene (se renderWeek): tidligst kl. 07, senest fra kl. 16; til kl. 22 eller senere
+let DAY_START = 16 * 60, DAY_END = 23 * 60;
 
 const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7": 75, "5": 60, "3": 45 } };
 
@@ -1295,6 +1326,7 @@ function markConflicts(items, a) {
 // ---------- rendering ----------
 function setStatus(html) { $("#status").innerHTML = html; }
 function renderStatus() {
+  if (erBesok() && S.backend?.name === "supabase") { setStatus(""); renderAuth(); renderViewAs(); return; }
   const nT = Object.keys(S.treninger).length, nK = Object.keys(S.kamper).length;
   const where = S.backend?.name === "supabase" ? "Kamper hentes fra fotball.no hver natt" : S.backend?.name === "db" ? "Delt med alle som har tilgang til siden" : "Lagret bare i denne nettleseren";
   setStatus(`<b class="num">${nK}</b> kamper/bookinger · <b class="num">${nT}</b> faste treningstider · ${where}${!S.canWrite ? " · <b>Bare lesetilgang</b>" : ""}`);
@@ -1370,11 +1402,14 @@ function renderAll() {
   renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); applyRo();
 }
 function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").forEach(d => d.classList.toggle("addable", !erGjest(curA()) && (isAdmin() || canRequest()))); }
+const erBesok = () => !isAdmin() && !isTrainer();
 function tabAllowed(v) {
+  if (erBesok()) return v === "uke"; // besøkende ser bare uka
   const f = $(`nav.tabs [data-view="${v}"]`)?.dataset.for;
   return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin());
 }
 function applyRoleUI() {
+  document.body.classList.toggle("besok", erBesok());
   $$("nav.tabs button").forEach(b => { b.hidden = !tabAllowed(b.dataset.view); });
   if (!tabAllowed(S.view)) show("uke");
   const gj = erGjest(curA()); // gjesteanlegg: bare visning
@@ -1453,15 +1488,25 @@ function renderWeek() {
   const items = lagFilter(occurrences(ws, a.id, bane?.id), a);
   const pairs = markConflicts(items, a);
   if (S.showLK) for (const it of items) if (it.type === "trening" && !it.avlyst) it.borte = lagOpptatt(it.label, it.date, it.start, it.end, a.id);
-  const H = (DAY_END - DAY_START) / 60; const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   const today = ymd(new Date());
-  const idx = S.day == null ? [0, 1, 2, 3, 4, 5, 6] : [S.day];
-  grid.classList.toggle("one", S.day != null);
+  const smal = matchMedia("(max-width: 720px)").matches;
+  if (smal && S.mobDag == null) { const i = Math.round((parseYmd(today) - ws) / 864e5); S.mobDag = i >= 0 && i < 7 ? i : 0; }
+  const dag = S.day ?? (smal ? S.mobDag : null);
+  const idx = dag == null ? [0, 1, 2, 3, 4, 5, 6] : [dag];
+  grid.classList.toggle("one", dag != null);
+  $("#dayPick").hidden = !smal;
+  if (smal) $("#dayPick").innerHTML = [0, 1, 2, 3, 4, 5, 6].map(i => { const d = addDays(ws, i);
+    return `<button type="button" data-mdag="${i}" aria-pressed="${i === dag}" class="${ymd(d) === today ? "today" : ""}">${DAGER[i].slice(0, 3)}<span>${d.getDate()}.${d.getMonth() + 1}</span></button>`; }).join("");
+  { const vis = new Set(idx.map(i => ymd(addDays(ws, i)))), synlig = items.filter(x => vis.has(x.date)), ms = synlig.map(x => x.start), me = synlig.map(x => x.end); // bare dagene som vises
+    // besøkende: tidsaksen tilpasses aktivitetene; de som kan booke, trenger hele dagen for å merke ledig tid
+    DAY_START = kanMerke() ? 8 * 60 : Math.max(7 * 60, Math.min(16 * 60, ...ms.map(m => Math.floor(m / 60) * 60 - 60)));
+    DAY_END = Math.min(24 * 60, Math.max(22 * 60, ...me.map(m => Math.ceil(m / 60) * 60))); }
+  const H = (DAY_END - DAY_START) / 60; const hpx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hour")) || 40;
   let html = `<div class="corner"></div>`;
   for (const i of idx) { const d = addDays(ws, i); const ds = ymd(d);
-    html += `<div class="dayhead${ds === today ? " today" : ""}"><button data-dayidx="${i}" title="${S.day == null ? "Vis hele dagen" : "Tilbake til hele uka"}"><b>${DAGER[i]}</b> <span class="num muted">${d.getDate()}.${d.getMonth() + 1}</span>${S.day != null ? `<span class="muted">· ← hele uka</span>` : ""}</button>
+    html += `<div class="dayhead${ds === today ? " today" : ""}"><button data-dayidx="${i}" title="${S.day == null ? "Vis hele dagen" : "Tilbake til hele uka"}"><b>${DAGER[i]}</b> <span class="num muted">${d.getDate()}.${d.getMonth() + 1}</span>${S.day != null ? `<span class="muted tilbake">· ← hele uka</span>` : ""}</button>
       <div class="lanes" aria-hidden="true">${laneLabels(a, bane?.id)}</div></div>`; }
-  html += `<div class="times" style="height:${H * hpx}px">${[...Array(H + 1)].map((_, h) => h === 0 ? "" : `<span style="top:${h * hpx}px">${pad(8 + h)}</span>`).join("")}</div>`;
+  html += `<div class="times" style="height:${H * hpx}px">${[...Array(H + 1)].map((_, h) => h === 0 ? "" : `<span style="top:${h * hpx}px">${pad(DAY_START / 60 + h)}</span>`).join("")}</div>`;
   for (const i of idx) {
     const ds = ymd(addDays(ws, i));
     html += `<div class="day${!erGjest(a) && (isAdmin() || canRequest()) ? " addable" : ""}" data-date="${ds}" style="height:${H * hpx}px">`;
@@ -3025,6 +3070,8 @@ function show(v) {
 $$("nav.tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#ukeLag").onchange = e => { S.ukeLag = e.target.value || null; saveUi(); renderWeek(); };
 $("#anleggSel").onchange = e => { const [aId, bId] = e.target.value.split("|"); S.anleggId = aId; S.baneId = bId; saveUi(); renderAll(); };
+$("#dayPick").addEventListener("click", e => { const b = e.target.closest("[data-mdag]"); if (!b) return; S.mobDag = +b.dataset.mdag; S.day = null; renderWeek(); });
+{ let smal = matchMedia("(max-width: 720px)").matches; addEventListener("resize", () => { const n = matchMedia("(max-width: 720px)").matches; if (n !== smal) { smal = n; renderWeek(); } }); }
 $("#prevW").onclick = () => { S.week = addDays(S.week, -7); renderWeek(); renderSeason(); };
 $("#nextW").onclick = () => { S.week = addDays(S.week, 7); renderWeek(); renderSeason(); };
 $("#todayW").onclick = () => { S.week = monday(new Date()); renderWeek(); renderSeason(); };

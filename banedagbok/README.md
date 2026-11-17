@@ -14,7 +14,7 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 
 | Rolle | Kan |
 |---|---|
-| Besøkende (ikke innlogget) | Se ukevisning, treningstider per lag, lag og kampliste. Merknader er skjult. |
+| Besøkende (ikke innlogget) | Se ukevisningen, og velge bane og lag. Merknader er skjult. |
 | Trener | Avlyse enkeltøkter av faste treninger, og avlyse (slette) enkelttreninger, treningskamper og bookinger for egne lag. Sende forespørsel om enkelttrening eller treningskamp. |
 | Trener+ | Alt en trener kan, og i tillegg booke og endre enkelttreninger og treningskamper for egne lag direkte. |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
@@ -56,6 +56,10 @@ Når admin godkjenner en forespørsel, blir den automatisk en treningstid. Fanen
 
 - I uka vises den stiplet og overstreket.
 - Den listes under «Kamp eller booking går foran», og regnes ikke som en kollisjon.
+
+**Besøkende** ser en enkel side med bare uka: valg av bane og lag, uke fram og tilbake, ukevisningen og en forklaring på fargene. Fanene, sesongstripa og verktøyene for innloggede er skjult. Tidsaksen tilpasses aktivitetene, så tomme formiddager ikke tar plass.
+
+**På mobil** vises én dag om gangen, med en rad med ukedagene over for å bytte dag. Dagen i dag er valgt når siden åpnes. Sesongstripa er skjult på mobil.
 
 **Kollisjoner** vises i selve boksene, ikke som varsler over uka. Når to treninger krasjer, eller kamper og bookinger krasjer med hverandre, blir boksene røde. Boksene som overlapper, legges oppå hverandre med litt forskyvning, så alle kan klikkes.
 
