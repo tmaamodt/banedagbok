@@ -154,6 +154,22 @@ Nederst på siden står to oversikter:
 
 Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholdes samme sted, og siden foreslår lag ut fra hjemmelagene i kampene fra fotball.no.
 
+### Godkjenningslisten
+
+Alle kan logge inn, med lenke på e-post, Google eller Facebook. Hvordan personen kjennes igjen:
+
+- **Kjent innlogging:** brukeren kjennes igjen på Supabase-brukerens id, som kobles til brukeren første gang personen logger inn. Det gjelder selv om e-postadressen senere endres eller mangler.
+- **Kjent e-postadresse:** stemmer e-postadressen med en av e-postadressene til en bruker, får personen rollen sin med en gang, og innloggingen kobles til brukeren.
+- **Ukjent:** personen havner i **Venter på godkjenning** øverst under **Brukere**, og ser det samme som besøkende til admin har godkjent. Det gjelder for eksempel Facebook-kontoer uten e-post, eller en annen e-postadresse enn den admin har registrert. Fanen Brukere viser hvor mange som venter.
+
+Admin kan gjøre tre ting med en som venter:
+
+- **Godkjenne som ny bruker:** med navn, rolle og lag.
+- **Koble til en bruker som finnes:** for eksempel når en trener logger inn med Facebook i stedet for e-post. E-postadressen fra innloggingen legges da til hos brukeren.
+- **Avvise:** logger personen inn igjen, havner den på lista på nytt.
+
+En bruker kan ha flere e-postadresser. Skriv dem i feltet «E-postadresser» i brukerlista, skilt med komma. Kolonnen «Innlogginger» viser hvor mange innlogginger brukeren er koblet til. «Fjern kobling» tar dem bort, for eksempel hvis en innlogging er koblet til feil person. Brukeren kjennes da bare igjen på e-postadressene sine. Den samme e-postadressen eller innloggingen kan ikke høre til to brukere.
+
 ## Dommere
 
 **Dommer fra kretsen:** skriptet henter hver natt dommerne fra kampsiden på fotball.no for kommende kamper (3 dager tilbake til 4 uker fram) på egne anlegg. Kampsiden finnes via lagsidene til klubbene i oppsettet. Dommeren vises med fullt navn, siden det er åpen informasjon på fotball.no, for eksempel «Lucas Oliver Bexrud · fra kretsen».
@@ -215,13 +231,15 @@ Regn med rundt en halvtime. Du trenger en Supabase-konto (gratis), tilgang til d
 1. Gå til **Authentication → URL Configuration**. Sett **Site URL** til adressen siden skal ligge på (se steg 4), og legg samme adresse inn under **Redirect URLs**.
 2. **Viktig:** Supabase sin innebygde e-posttjeneste sender bare til medlemmer av Supabase-prosjektet, og bare noen få e-poster i timen. Før trenerne kan logge inn, må du koble til en egen e-posttjeneste under **Authentication → Emails → SMTP Settings**. Brevo og Resend har gratisnivå som holder for en klubb.
 
-### Innlogging med Google og Microsoft (valgfritt)
+### Innlogging med Google og Facebook (valgfritt)
 
-Brukerne kan logge inn med Google- eller Microsoft-kontoen sin i stedet for lenke på e-post. Begge deler er gratis. Brukeren kjennes igjen på e-postadressen, så kontoen må ha samme e-post som admin har registrert under Brukere (eller dommeransvarlig under Dommere). Innlogging med lenke på e-post virker fortsatt for alle.
+Brukerne kan logge inn med Google- eller Facebook-kontoen sin i stedet for lenke på e-post. Begge deler er gratis. Innlogging med lenke på e-post virker fortsatt for alle. Er e-postadressen fra kontoen registrert på en bruker, får personen rollen sin med en gang. Ellers havner personen på godkjenningslisten (se «Godkjenningslisten» over). Det gjelder også Facebook-kontoer uten e-postadresse.
 
-Menyene hos Google og Microsoft endres av og til. Navnene under var riktige da veiledningen ble skrevet.
+Knappene «Logg inn med Google» og «Logg inn med Facebook» vises av seg selv for leverandørene som er slått på i Supabase. Det trengs ingen endring i `index.html`.
 
-**Felles:** i Supabase, åpne **Authentication → Providers** og velg leverandøren. Kopier **Callback URL** (`https://<prosjekt>.supabase.co/auth/v1/callback`). Den trengs hos Google og Microsoft.
+Menyene hos Google og Facebook endres av og til. Navnene under var riktige da veiledningen ble skrevet.
+
+**Felles:** i Supabase, åpne **Authentication → Providers** og velg leverandøren. Kopier **Callback URL** (`https://<prosjekt>.supabase.co/auth/v1/callback`). Den trengs hos Google og Facebook.
 
 **Google**
 
@@ -230,20 +248,19 @@ Menyene hos Google og Microsoft endres av og til. Navnene under var riktige da v
 3. **Credentials → Create credentials → OAuth client ID**: velg **Web application**. Under **Authorized redirect URIs** limer du inn Callback URL fra Supabase. Kopier **Client ID** og **Client secret**.
 4. I Supabase, under **Providers → Google**: slå på, lim inn Client ID og Client secret, og lagre.
 
-**Microsoft**
+**Facebook**
 
-1. Gå til [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID → App registrations → New registration**.
-2. Gi appen et navn. Under **Supported account types** velger du «Accounts in any organizational directory and personal Microsoft accounts», så både jobbkontoer og private Outlook- og Hotmail-kontoer virker. Under **Redirect URI** velger du **Web** og limer inn Callback URL fra Supabase.
-3. Kopier **Application (client) ID**. Gå til **Certificates & secrets → New client secret** og kopier **Value**. Hemmeligheten utløper, maks etter 24 måneder. Legg inn en påminnelse om å lage en ny.
-4. I Supabase, under **Providers → Azure**: slå på, lim inn client ID og secret, og lagre. **Azure Tenant URL** kan stå tom.
+1. Gå til [developers.facebook.com](https://developers.facebook.com), logg inn og velg **My Apps → Create App**. Velg bruksområdet for innlogging med Facebook («Authenticate and request data from users with Facebook Login»), og gi appen et navn, for eksempel «Banedagbok».
+2. Under **Use cases → Facebook Login → Customize**:
+   - Legg til tillatelsen **email**.
+   - Under **Settings**, legg inn Callback URL fra Supabase i **Valid OAuth Redirect URIs**, og lagre.
+3. Under **App settings → Basic**:
+   - Fyll inn **Privacy Policy URL** med adressen til personvernsiden, `https://<adresse>/personvern.html`.
+   - Kopier **App ID** og **App Secret**.
+4. Sett appen til **Live** (publiser den). Ellers kan bare de som er lagt inn som utviklere eller testere, logge inn.
+5. I Supabase, under **Providers → Facebook**: slå på, lim inn App ID og App Secret, og lagre.
 
-**Til slutt:** slå på knappene i `banedagbok/index.html` (se steg 4):
-
-```js
-window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "…", anonKey: "…", innlogging: ["google", "microsoft"] };
-```
-
-Ta bare med leverandørene som er satt opp. Knappene «Logg inn med Google» og «Logg inn med Microsoft» vises da i innloggingsvinduet. Facebook og Apple er ikke lagt inn. Facebook-kontoer har ikke alltid e-post, og med Apple kan brukeren skjule e-postadressen sin, og da kjennes ikke brukeren igjen.
+Apple er ikke lagt inn. Der kan brukeren skjule e-postadressen sin, men godkjenningslisten ville håndtert det på samme måte som Facebook.
 
 ### 3. Automatisk henting fra fotball.no
 
@@ -281,7 +298,7 @@ Skriptet kan kjøres lokalt med `pip install openpyxl` og `python scripts/hent_k
 
 ## Drift
 
-- **Ny admin eller trener:** en admin legger personen til under **Brukere** på nettsiden. Personen logger inn med e-postadressen sin.
+- **Ny admin eller trener:** en admin legger personen til under **Brukere** på nettsiden, og personen logger inn med e-postadressen sin. Personen kan også logge inn først (for eksempel med Facebook), og admin godkjenner fra godkjenningslisten.
 - **Nytt anlegg:** en admin legger det inn under **Baner** på nettsiden, med anleggs-ID fra fotball.no. Neste natt hentes kampene.
 - **Feil i hentingen:** GitHub sender e-post når en kjøring feiler. Loggen ligger under Actions.
 - **Pause i gratisprosjekter:** Supabase pauser gratisprosjekter som ikke er brukt på en uke. Den nattlige hentingen bruker databasen hver dag.
