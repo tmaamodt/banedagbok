@@ -307,6 +307,8 @@ tr.click:hover td { background: var(--pitch-soft) }
 .cols { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start }
 .panel { align-content: start }
 .cols > * { min-width: 0 }
+.brukercols { grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1fr) }
+@media (max-width: 1000px) { .brukercols { grid-template-columns: 1fr } }
 .form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) }
 .form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600 }
 .form label.wide { grid-column: 1 / -1 }
@@ -380,7 +382,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <button role="tab" data-view="kamper" data-for="alle" aria-selected="false">Kamper og bookinger</button>
     <button role="tab" data-view="minedommer" data-for="megdommer" aria-selected="false">Mine dommeroppdrag</button>
     <button role="tab" data-view="dommere" data-for="dommer" aria-selected="false">Dommere</button>
-    <button role="tab" data-view="brukere" data-for="admin" aria-selected="false">Brukere</button>
+    <button role="tab" data-view="brukere" data-for="admin" aria-selected="false">Brukere<span class="badge" id="ventBadge" hidden></span></button>
     <button role="tab" data-view="import" data-for="admin" aria-selected="false">Hent fra fotball.no</button>
     <button role="tab" data-view="oppsett" data-for="admin" aria-selected="false">Baner</button>
   </nav>
@@ -586,11 +588,17 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
   </section>
 
   <section id="v-brukere" hidden>
-    <div class="cols">
+    <div id="ventWrap" hidden><div class="panel" style="display:grid;gap:8px;margin-bottom:16px;min-width:0">
+          <h2>Venter på godkjenning</h2>
+          <p class="note">Disse har logget inn, men er ikke koblet til en bruker. Godkjenn som ny bruker med rolle og lag, eller koble innloggingen til en bruker som finnes (for eksempel når en trener logger inn med Facebook i stedet for e-post). Til de er godkjent, ser de det samme som besøkende.</p>
+          <div class="tablewrap"><table><thead><tr><th>Innlogging</th><th>Navn</th><th>Godkjenn som</th><th>Rolle</th><th>Lag</th><th></th></tr></thead><tbody id="vList"></tbody></table></div>
+          <span class="note" id="v-msg"></span>
+    </div></div>
+    <div class="cols brukercols">
       <div class="panel" style="display:grid;gap:12px;min-width:0">
         <h2>Brukere</h2>
-        <p class="note">Bare personer på denne lista kan logge inn og endre. <b>Admin</b> kan alt. <b>Trener+</b> legger inn og endrer treningstider for egne lag. <b>Trener</b> avlyser og sletter treninger for egne lag. Begge trenerrollene kan søke om tid.</p>
-        <div class="tablewrap"><table><thead><tr><th>Navn</th><th>E-post</th><th>Rolle</th><th>Lag</th><th></th></tr></thead><tbody id="uList"></tbody></table></div>
+        <p class="note">Bare personer på denne lista kan endre. <b>Admin</b> kan alt. <b>Trener+</b> legger inn og endrer treningstider for egne lag. <b>Trener</b> avlyser og sletter treninger for egne lag. Begge trenerrollene kan søke om tid. En bruker kan ha flere e-postadresser (skill dem med komma), og kjennes etter første innlogging også igjen på selve innloggingen (Google, Facebook eller lenke på e-post).</p>
+        <div class="tablewrap"><table><thead><tr><th>Navn</th><th>E-postadresser</th><th>Rolle</th><th>Lag</th><th title="Antall innlogginger (Google, Facebook, lenke på e-post) som er koblet til brukeren">Innl.</th><th></th></tr></thead><tbody id="uList"></tbody></table></div>
         <h3>Legg til bruker</h3>
         <form class="form" id="uf">
           <label>Navn<input type="text" id="uf-navn" required placeholder="Fornavn Etternavn"></label>
@@ -763,8 +771,8 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
 // Supabase-oppsett. Fyll inn for å bruke en delt database (se README.md i samme mappe).
 // Begge verdiene finnes i Supabase under Project Settings → API. anon-nøkkelen er laget for å ligge i nettsider;
 // tilgangsreglene i databasen bestemmer hvem som får endre. Legg ALDRI inn service_role-nøkkelen her.
-// innlogging: leverandører som er slått på i Supabase (Authentication → Providers), f.eks. ["google", "microsoft"].
-// Innlogging med lenke på e-post virker alltid. Se README.md, «Innlogging med Google og Microsoft».
+// Knappene for Google og Facebook vises for leverandørene som er slått på i Supabase (Authentication → Providers).
+// innlogging brukes bare hvis Supabase ikke svarer på hvilke som er på. Innlogging med lenke på e-post virker alltid.
 window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "https://gqqvefyrygbrmtllybap.supabase.co", anonKey: "sb_publishable_o1CsLDmVn_8OUuqp58NRLQ_KlPWbAlt", innlogging: ["google"] };
 </script>
 <script>
@@ -798,7 +806,7 @@ let DAY_START = 16 * 60, DAY_END = 23 * 60;
 const DEFAULT_CFG = { klubb: "", anlegg: [], varighet: { "11": 120, "9": 90, "7": 75, "5": 60, "3": 45 } };
 
 // ---------- state ----------
-const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, gjest: {}, dommere: {}, dommeroppdrag: {}, anleggId: null, baneId: null, week: monday(new Date()),
+const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}, brukere: {}, grupper: {}, lagkamper: {}, gjest: {}, dommere: {}, dommeroppdrag: {}, ventende: {}, anleggId: null, baneId: null, week: monday(new Date()),
   view: "uke", day: null, ro: true, backend: null, loaded: false, editTrain: null,
   me: null,          // innlogget bruker: {epost, navn, rolle, lag}
   user: null,        // Supabase-innlogging
@@ -807,7 +815,7 @@ const S = { cfg: clone(DEFAULT_CFG), treninger: {}, kamper: {}, foresporsler: {}
 try { const v = localStorage.getItem("banedagbok:ui"); if (v) { const u = JSON.parse(v); if (u.anleggId) S.anleggId = u.anleggId; if (u.baneId) S.baneId = u.baneId; if (u.viewAs) S.viewAs = u.viewAs; S.showLK = !!u.showLK; S.lagSel = u.lagSel || null; S.ukeLag = u.ukeLag || null; S.mobUke = !!u.mobUke; } } catch (e) {}
 let SB = null; // Supabase-klient når siden er koblet til Supabase
 const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringify({ anleggId: S.anleggId, baneId: S.baneId, viewAs: S.viewAs, showLK: S.showLK, lagSel: S.lagSel, ukeLag: S.ukeLag, mobUke: S.mobUke })); } catch (e) {} };
-const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest", "dommere", "dommeroppdrag"];
+const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest", "dommere", "dommeroppdrag", "ventende"];
 
 // ---------- roller ----------
 const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener", dommeransvarlig: "Dommeransvarlig", dommer: "Dommer" };
@@ -822,6 +830,11 @@ const isDommer = () => !!minDommerId();
 const kunDommer = () => rolle() === "dommer";
 const isTrainer = () => rolle() === "trener" || rolle() === "trener_pluss";
 const myLag = () => S.me?.lag || [];
+// Alle e-postadressene til en bruker, og brukeren som har en gitt e-postadresse
+const eposterFor = u => [...new Set([u?.epost, ...(u?.eposter || [])].filter(Boolean).map(x => x.toLowerCase()))];
+const brukerMedEpost = ep => Object.entries(S.brukere).find(([, u]) => eposterFor(u).includes(ep)) || null;
+// Er forespørselen sendt av innlogget bruker? Nye forespørsler har brukerId, eldre bare e-post.
+const erMin = r => !!S.me && (r.brukerId ? r.brukerId === S.me.id : !!r.epost && (r.epost === S.me.epost || eposterFor(S.me).includes(r.epost)));
 const isEnkelt = t => t?.type === "enkelt";
 const isPluss = () => rolle() === "trener_pluss" && myLag().length > 0;
 // Faste treninger: bare admin. Trener+: enkelttreninger og treningskamper for egne lag. Trenere: slette og avlyse egne.
@@ -839,8 +852,8 @@ function computeMe() {
   if (S.backend?.name === "supabase") return; // satt av refreshRole
   if (!S.canWrite) { S.me = null; }
   else if (S.viewAs === "besokende") S.me = null;
-  else if (S.viewAs !== "eier" && S.brukere[S.viewAs]) S.me = { ...S.brukere[S.viewAs] };
-  else { S.viewAs = "eier"; S.me = { epost: "eier", navn: "Deg (eier)", rolle: "admin", lag: [] }; }
+  else if (S.viewAs !== "eier" && S.brukere[S.viewAs]) S.me = { ...S.brukere[S.viewAs], id: S.viewAs };
+  else { S.viewAs = "eier"; S.me = { id: "eier", epost: "eier", navn: "Deg (eier)", rolle: "admin", lag: [] }; }
   S.ro = !isAdmin();
 }
 
@@ -883,7 +896,7 @@ function supabaseBackend(sb) {
   const emit = t => t === "config" ? cb({ cfg: data.config.oppsett || null }) : cb({ [t]: { ...data[t] } });
   const fail = e => {
     const err = new Error(e.message || "Lagring feilet");
-    err.code = (e.code === "42501" || e.code === "PGRST301" || e.status === 401 || e.status === 403) ? "not_editor" : "unavailable";
+    err.code = (e.code === "42501" || e.code === "PGRST301" || e.status === 401 || e.status === 403) ? "not_editor" : (e.code === "23505" || e.code === "P0001") ? "regel" : "unavailable";
     return err;
   };
   async function loadAll(t) {
@@ -939,6 +952,7 @@ function errText(e) {
   if (c === "not_editor") return S.user ? (e.message && /avlyse|admin/.test(e.message) ? e.message : "Rollen din gir ikke tilgang til dette.") : "Logg inn for å endre (øverst til høyre).";
   if (c === "invalid_argument") return "Du har ikke tilgang til å endre banedagboken. Be eieren gi deg rollen Bidragsyter.";
   if (c === "last_admin") return "Det må finnes minst én admin.";
+  if (c === "regel") return e.message;
   if (c === "quota_exceeded") return "Lagringen er full. Slett gamle kamper (for eksempel forrige sesong) og prøv igjen.";
   if (c === "resource_exhausted") return "For mange endringer på kort tid. Vent litt og prøv igjen.";
   return "Lagring feilet. Prøv igjen om litt.";
@@ -1181,7 +1195,7 @@ function occurrences(weekStart, aId, bId) {
   if (erGjest(A)) out.push(...gjestItems(A, days, bId, out));
   for (const [id, r] of Object.entries(S.foresporsler)) {
     if (r.status !== "ny" || r.anleggId !== aId || !S.me || !onBane(r.delbaneId)) continue;
-    if (!isAdmin() && r.epost !== S.me.epost) continue;
+    if (!isAdmin() && !erMin(r)) continue;
     for (const c of requestDates(r)) {
       if (!days.includes(c.date)) continue;
       out.push({ type: "foresp", id, date: c.date, start: c.start, end: c.end, del: r.delbaneId, label: r.type === "treningskamp" ? `${r.lag} – ${r.motstander || "?"}` : r.lag,
@@ -1414,7 +1428,7 @@ function markConflicts(items, a) {
 // ---------- rendering ----------
 function setStatus(html) { $("#status").innerHTML = html; }
 function renderStatus() {
-  if ((erBesok() || kunDommer()) && S.backend?.name === "supabase") { setStatus(""); renderAuth(); renderViewAs(); return; }
+  if ((erBesok() || kunDommer()) && S.backend?.name === "supabase") { setStatus(S.user && !S.me ? ventTekst() : ""); renderAuth(); renderViewAs(); return; }
   const nT = Object.keys(S.treninger).length, nK = Object.keys(S.kamper).length;
   const where = S.backend?.name === "supabase" ? "Kamper hentes fra fotball.no hver natt" : S.backend?.name === "db" ? "Delt med alle som har tilgang til siden" : "Lagret bare i denne nettleseren";
   setStatus(`<b class="num">${nK}</b> kamper/bookinger · <b class="num">${nT}</b> faste treningstider · ${where}${!S.canWrite ? " · <b>Bare lesetilgang</b>" : ""}`);
@@ -1522,8 +1536,10 @@ function applyRoleUI() {
   // forespørsler
   $("#rlGoUke").hidden = $("#rlNote").hidden = !canRequest();
   $("#rlTitle").textContent = isAdmin() ? "Forespørsler fra trenere" : "Mine forespørsler";
-  const pending = Object.values(S.foresporsler).filter(r => r.status === "ny" && (isAdmin() || r.epost === S.me?.epost)).length;
+  const pending = Object.values(S.foresporsler).filter(r => r.status === "ny" && (isAdmin() || erMin(r))).length;
   $("#reqBadge").hidden = !pending || !(isAdmin() || isTrainer()); $("#reqBadge").textContent = pending;
+  const nVent = Object.keys(S.ventende).length;
+  $("#ventBadge").hidden = !nVent || !isAdmin(); $("#ventBadge").textContent = nVent;
 }
 function renderViewAs() {
   const el = $("#viewAs");
@@ -1663,14 +1679,14 @@ async function dommerInnlogging(id, d, på) {
     return;
   }
   if (!ep) throw new Error("Legg inn e-post, så dommeren kan logge inn med den.");
-  for (const [bid, u] of koblet) if (bid !== ep && u.rolle === "dommer") await S.backend.del("brukere", bid); // ny e-post
-  const u = S.brukere[ep];
+  for (const [bid, u] of koblet) if (!eposterFor(u).includes(ep) && u.rolle === "dommer") await S.backend.del("brukere", bid); // ny e-post
+  const [fid, u] = brukerMedEpost(ep) || [];
   if (u && u.rolle !== "dommer") {
     if (u.dommerId === id) return;
     if (!isAdmin()) throw new Error(`${ep} er allerede bruker som ${ROLLER[u.rolle] || u.rolle}. Be admin koble dommeren til brukeren.`);
-    await S.backend.put("brukere", ep, { ...u, dommerId: id }); return;
+    await S.backend.put("brukere", fid, { ...u, dommerId: id }); return;
   }
-  await S.backend.put("brukere", ep, { epost: ep, navn: d.navn, rolle: "dommer", dommerId: id, lag: [] });
+  await S.backend.put("brukere", fid || ep, { ...(u || {}), epost: ep, navn: d.navn, rolle: "dommer", dommerId: id, lag: [] });
 }
 // Mine dommeroppdrag og kontaktinfo for innlogget dommer
 function renderMineDommer() {
@@ -2213,7 +2229,7 @@ function initRequestForm() {
       finally { $("#rf-send").disabled = false; }
       return;
     }
-    Object.assign(r, { status: "ny", epost: S.me.epost, navn: S.me.navn || S.me.epost, opprettet: new Date().toISOString() });
+    Object.assign(r, { status: "ny", brukerId: S.me.id, epost: S.me.epost || "", navn: S.me.navn || S.me.epost, opprettet: new Date().toISOString() });
     try { await S.backend.put("foresporsler", "f-" + uid(), r); rfDlg.close(); clearSel(); flash(`Forespørselen er sendt. Svaret ser du under Forespørsler.`); msg.textContent = ""; $("#rf-merk").value = ""; $("#rf-mot").value = ""; }
     catch (err) { msg.innerHTML = `<span class="err">${esc(errText(err))}</span>`; }
     finally { $("#rf-send").disabled = false; }
@@ -2255,7 +2271,7 @@ function requestSummary(r) {
 const STATUS = { ny: "Venter", godkjent: "Godkjent", avslatt: "Avslått" };
 function renderRequests() {
   const el = $("#rList"); if (!S.me) { el.innerHTML = ""; return; }
-  const all = Object.entries(S.foresporsler).filter(([, r]) => isAdmin() || r.epost === S.me.epost)
+  const all = Object.entries(S.foresporsler).filter(([, r]) => isAdmin() || erMin(r))
     .sort(([, x], [, y]) => (x.status === "ny" ? 0 : 1) - (y.status === "ny" ? 0 : 1) || String(y.opprettet).localeCompare(String(x.opprettet)));
   if (!all.length) { el.innerHTML = `<p class="note">${isAdmin() ? "Ingen forespørsler fra trenere ennå." : "Du har ikke sendt noen forespørsler ennå."}</p>`; return; }
   el.innerHTML = all.slice(0, 60).map(([id, r]) => {
@@ -2309,11 +2325,13 @@ function renderUsers() {
   if (!isAdmin()) return;
   const rows = Object.entries(S.brukere).sort(([, x], [, y]) => (x.navn || "").localeCompare(y.navn || "", "nb"));
   $("#uList").innerHTML = rows.length ? rows.map(([id, u]) => `<tr data-uid="${esc(id)}">
-      <td>${esc(u.navn)}</td><td class="mono" style="font-size:13px">${esc(u.epost)}</td>
+      <td>${esc(u.navn)}</td><td><input type="text" data-uf="eposter" value="${esc(eposterFor(u).join(", "))}" aria-label="E-postadresser for ${esc(u.navn)}" class="mono" style="font-size:13px;min-width:180px"></td>
       <td><select data-uf="rolle" aria-label="Rolle">${Object.entries(ROLLER).map(([k, v]) => `<option value="${k}"${u.rolle === k ? " selected" : ""}>${v}</option>`).join("")}</select></td>
       <td>${u.rolle === "admin" ? `<span class="muted">Alle</span>` : lagPicker("lag-" + id, u.lag || [])}</td>
+      <td style="white-space:nowrap">${(u.uids || []).length ? `<span title="Koblet til ${u.uids.length} innlogging(er) i Supabase">${u.uids.length}</span> <button class="btn ghost" data-ukoble="${esc(id)}" title="Fjern koblingen til innlogginger. Brukeren kjennes da bare igjen på e-postadressene." aria-label="Fjern kobling til innlogginger for ${esc(u.navn)}">✕</button>` : `<span class="muted">–</span>`}</td>
       <td><button class="btn danger" data-udel="${esc(id)}">Fjern</button></td></tr>`).join("")
-    : `<tr><td colspan="5" class="muted">Ingen brukere ennå. Legg til den første under.</td></tr>`;
+    : `<tr><td colspan="6" class="muted">Ingen brukere ennå. Legg til den første under.</td></tr>`;
+  renderVentende();
   const ufSel = $$('#uf-lag input:checked').map(i => i.value);
   $("#uf-lag").innerHTML = lagPicker("uf-lag", ufSel);
   const lag = S.cfg.lag || [];
@@ -2328,6 +2346,56 @@ function renderUsers() {
   const list = [...sugg].sort((x, y) => x.localeCompare(y, "nb")).slice(0, 40);
   $("#lagSuggest").innerHTML = list.length ? `<span class="note">Forslag fra hjemmelagene i kampene (klikk for å legge til):</span><div class="chips">${list.map(l => `<span class="chip suggest" data-lagadd="${esc(l)}" role="button" tabindex="0">+ ${esc(l)}</span>`).join("")}</div>` : "";
 }
+// Godkjenningslisten: innlogginger som ikke er koblet til en bruker
+const LEVERANDOR = { google: "Google", facebook: "Facebook", email: "Lenke på e-post", azure: "Microsoft" };
+function renderVentende() {
+  const vent = Object.entries(S.ventende).sort(([, a], [, b]) => String(b.sist || "").localeCompare(String(a.sist || "")));
+  $("#ventWrap").hidden = !vent.length;
+  if ($("#vList").contains(document.activeElement) || $("#vList details[open]")) return; // ikke forstyrr admin midt i utfyllingen
+  const brukerValg = Object.entries(S.brukere).sort(([, x], [, y]) => (x.navn || "").localeCompare(y.navn || "", "nb"))
+    .map(([id, u]) => `<option value="${esc(id)}">${esc(u.navn)}${u.epost ? " · " + esc(u.epost) : ""}</option>`).join("");
+  $("#vList").innerHTML = vent.map(([vid, v]) => `<tr data-vid="${esc(vid)}">
+      <td>${esc(LEVERANDOR[v.leverandor] || v.leverandor || "")}<br><span class="mono" style="font-size:13px">${v.epost ? esc(v.epost) : `<span class="muted">uten e-post</span>`}</span>${v.sist ? `<br><span class="muted" style="font-size:12px">${esc(fmtDate(String(v.sist).slice(0, 10)))}</span>` : ""}</td>
+      <td><input type="text" data-v="navn" value="${esc(v.navn || "")}" placeholder="Fornavn Etternavn" aria-label="Navn"></td>
+      <td><select data-v="som" aria-label="Godkjenn som"><option value="">Ny bruker</option><optgroup label="Koble til bruker">${brukerValg}</optgroup></select></td>
+      <td><select data-v="rolle" aria-label="Rolle">${["trener", "trener_pluss", "dommeransvarlig", "admin"].map(k => `<option value="${k}">${ROLLER[k]}</option>`).join("")}</select></td>
+      <td data-v="lagcelle">${lagPicker("vlag-" + vid, [])}</td>
+      <td style="white-space:nowrap"><button class="btn primary" type="button" data-vgo>Godkjenn</button> <button class="btn danger" type="button" data-vavvis>Avvis</button></td></tr>`).join("");
+}
+function initVentende() {
+  $("#vList").addEventListener("change", e => {
+    const tr = e.target.closest("tr[data-vid]"); if (!tr) return;
+    if (e.target.dataset.v === "som") { const ny = !e.target.value; $('[data-v="navn"]', tr).disabled = $('[data-v="rolle"]', tr).disabled = !ny; $('[data-v="lagcelle"]', tr).style.visibility = ny ? "" : "hidden"; }
+    if (e.target.name === "vlag-" + tr.dataset.vid) { const sel = $$(`input[name="vlag-${CSS.escape(tr.dataset.vid)}"]:checked`, tr).map(i => i.value); $("summary", tr).textContent = sel.length ? sel.join(", ") : "Velg lag"; }
+  });
+  $("#vList").addEventListener("click", async e => {
+    const tr = e.target.closest("tr[data-vid]"); if (!tr) return; const vid = tr.dataset.vid, v = S.ventende[vid], msg = $("#v-msg"); if (!v) return;
+    if (e.target.closest("[data-vavvis]")) {
+      try { await S.backend.del("ventende", vid); msg.innerHTML = `<span class="ok">Avvist. Logger personen inn igjen, havner den på lista på nytt.</span>`; }
+      catch (er) { msg.innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+      return;
+    }
+    if (!e.target.closest("[data-vgo]")) return;
+    const som = $('[data-v="som"]', tr).value, ep = (v.epost || "").toLowerCase(), uidV = v.uid || vid;
+    try {
+      let tekst;
+      if (som) {
+        const u = clone(S.brukere[som]); u.uids = [...new Set([...(u.uids || []), uidV])];
+        if (ep && !eposterFor(u).includes(ep)) { if (u.epost) u.eposter = [...(u.eposter || []), ep]; else u.epost = ep; }
+        await S.backend.put("brukere", som, u); tekst = `Innloggingen er koblet til ${esc(u.navn)}.`;
+      } else {
+        const navn = $('[data-v="navn"]', tr).value.trim(), r = $('[data-v="rolle"]', tr).value;
+        const lag = r === "admin" ? [] : $$(`input[name="vlag-${CSS.escape(vid)}"]:checked`, tr).map(i => i.value);
+        if (!navn) { msg.innerHTML = `<span class="err">Skriv inn navnet.</span>`; $('[data-v="navn"]', tr).focus(); return; }
+        if ((r === "trener" || r === "trener_pluss") && !lag.length) { msg.innerHTML = `<span class="err">Velg minst ett lag for treneren.</span>`; return; }
+        if (ep && brukerMedEpost(ep)) { msg.innerHTML = `<span class="err">${esc(ep)} hører allerede til ${esc(brukerMedEpost(ep)[1].navn)}. Velg «Koble til bruker» i stedet.</span>`; return; }
+        await S.backend.put("brukere", "u-" + uidV, { epost: ep, eposter: [], navn, rolle: r, lag, uids: [uidV] }); tekst = `${esc(navn)} er godkjent som ${ROLLER[r]}.`;
+      }
+      await S.backend.del("ventende", vid);
+      msg.innerHTML = `<span class="ok">${tekst} Rollen gjelder fra neste gang siden lastes.</span>`;
+    } catch (er) { msg.innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+  });
+}
 async function saveUser(id, u) { try { await S.backend.put("brukere", id, u); return null; } catch (e) { return errText(e); } }
 function adminCount(exceptId) { return Object.entries(S.brukere).filter(([id, u]) => u.rolle === "admin" && id !== exceptId).length; }
 // lagvelgere lukkes ved klikk utenfor eller Escape
@@ -2340,7 +2408,7 @@ function initUsers() {
     if (!navn || !epost || !$("#uf-epost").checkValidity()) { msg.innerHTML = `<span class="err">Fyll inn navn og en gyldig e-postadresse.</span>`; return; }
     const lag = r === "admin" ? [] : $$('#uf-lag input:checked').map(i => i.value);
     if (r !== "admin" && !lag.length) { msg.innerHTML = `<span class="err">Velg minst ett lag for treneren.</span>`; return; }
-    if (S.brukere[epost]) { msg.innerHTML = `<span class="err">${esc(epost)} finnes allerede i lista.</span>`; return; }
+    if (S.brukere[epost] || brukerMedEpost(epost)) { msg.innerHTML = `<span class="err">${esc(epost)} finnes allerede i lista.</span>`; return; }
     const err = await saveUser(epost, { epost, navn, rolle: r, lag });
     msg.innerHTML = err ? `<span class="err">${esc(err)}</span>` : `<span class="ok">${esc(navn)} er lagt til som ${ROLLER[r]}.${SB ? " Personen logger inn med e-postadressen sin." : ""}</span>`;
     if (!err) { $("#uf-navn").value = ""; $("#uf-epost").value = ""; $$('#uf-lag input').forEach(i => { i.checked = false; }); renderUsers(); }
@@ -2352,10 +2420,26 @@ function initUsers() {
       if (u.rolle === "admin" && e.target.value !== "admin" && !adminCount(id)) { e.target.value = "admin"; setStatus(`<span class="err">Det må finnes minst én admin. Legg til en ny admin først.</span>`); return; }
       u.rolle = e.target.value; if (u.rolle === "admin") u.lag = [];
     } else if (e.target.name === "lag-" + id) u.lag = $$(`input[name="lag-${CSS.escape(id)}"]:checked`, tr).map(i => i.value);
-    else return;
+    else if (e.target.dataset.uf === "eposter") {
+      const liste = [...new Set(e.target.value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean))];
+      const ugyldig = liste.find(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)), annen = liste.map(x => [x, brukerMedEpost(x)]).find(([, b]) => b && b[0] !== id);
+      const feil = ugyldig ? `«${ugyldig}» er ikke en gyldig e-postadresse.` : annen ? `${annen[0]} hører allerede til ${annen[1][1].navn}.`
+        : !liste.length && !(u.uids || []).length ? "Brukeren må ha minst én e-postadresse eller en koblet innlogging." : "";
+      if (feil) { setStatus(`<span class="err">${esc(feil)}</span>`); e.target.value = eposterFor(u).join(", "); return; }
+      u.epost = liste[0] || ""; u.eposter = liste.slice(1); e.target.value = liste.join(", ");
+    } else return;
     const err = await saveUser(id, u); if (err) setStatus(`<span class="err">${esc(err)}</span>`);
   });
   $("#uList").addEventListener("click", e => {
+    const k = e.target.closest("[data-ukoble]");
+    if (k && !k.dataset.wired) {
+      k.dataset.wired = "1"; const kid = k.dataset.ukoble;
+      confirmBtn(k, "Bekreft", async () => {
+        const u = clone(S.brukere[kid]); if (!eposterFor(u).length) throw Object.assign(new Error("Legg inn en e-postadresse først, ellers kan brukeren ikke logge inn."), { code: "regel" });
+        u.uids = []; await S.backend.put("brukere", kid, u);
+      });
+      k.click(); return;
+    }
     const b = e.target.closest("[data-udel]"); if (!b || b.dataset.wired) return; b.dataset.wired = "1";
     const id = b.dataset.udel;
     confirmBtn(b, "Bekreft", async () => {
@@ -3364,24 +3448,33 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initMerking(); initDommere(); initMineDommer(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
+initMerking(); initDommere(); initMineDommer(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initVentende(); initPlan(); initLag(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {
   const el = $("#auth"); if (!SB) { el.innerHTML = ""; return; }
   if (!S.user) { el.innerHTML = `<button class="btn" id="loginBtn">Logg inn</button>`; $("#loginBtn").onclick = openLogin; return; }
-  el.innerHTML = `${esc(S.me?.navn || S.user.email)} · ${S.me ? ROLLER[S.me.rolle] + (S.me.lag?.length ? " for " + esc(S.me.lag.join(", ")) : "") : "<b>ikke registrert</b>"} · <button class="btn ghost" id="logoutBtn">Logg ut</button>`;
+  el.innerHTML = `${esc(S.me?.navn || S.user.email || S.user.user_metadata?.full_name || "Innlogget")} · ${S.me ? ROLLER[S.me.rolle] + (S.me.lag?.length ? " for " + esc(S.me.lag.join(", ")) : "") : "<b>venter på godkjenning</b>"} · <button class="btn ghost" id="logoutBtn">Logg ut</button>`;
   $("#logoutBtn").onclick = () => SB.auth.signOut();
 }
-// Innlogging med Google og Microsoft (Supabase kaller Microsoft «azure»). Brukeren kjennes igjen på e-postadressen.
-const OAUTH = { google: { navn: "Google", provider: "google", opts: {} }, microsoft: { navn: "Microsoft", provider: "azure", opts: { scopes: "email" } } };
+// Innlogging med Google og Facebook. Knappene vises for leverandørene som er slått på i Supabase
+// (Authentication → Providers). Ukjente innlogginger havner i godkjenningslisten under Brukere.
+const OAUTH = { google: { navn: "Google", provider: "google", opts: {} }, facebook: { navn: "Facebook", provider: "facebook", opts: { scopes: "email" } } };
 const oauthIkon = { google: `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`,
-  microsoft: `<svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>` };
+  facebook: `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.32l-.53 3.5h-2.8V24C19.62 23.1 24 18.1 24 12.07"/></svg>` };
+// Leverandørene som er slått på i Supabase. Hentes når siden lastes; svarer ikke Supabase, brukes innlogging i oppsettet.
+let oauthPa = null;
+async function hentLeverandorer(conf) {
+  try {
+    const r = await fetch(conf.url.replace(/\/$/, "") + "/auth/v1/settings", { headers: { apikey: conf.anonKey } });
+    const ext = (await r.json()).external || {}; oauthPa = Object.keys(OAUTH).filter(k => ext[OAUTH[k].provider]);
+  } catch (e) { oauthPa = null; }
+}
 function openLogin() {
-  const lev = ((window.BANEDAGBOK_SUPABASE || {}).innlogging || []).filter(x => OAUTH[x]);
+  const lev = (oauthPa || (window.BANEDAGBOK_SUPABASE || {}).innlogging || []).filter(x => OAUTH[x]);
   openDlg("Logg inn", `${lev.length ? `<div style="display:grid;gap:8px;margin-bottom:12px">${lev.map(x => `<button class="btn" type="button" data-oauth="${x}" style="display:flex;gap:10px;align-items:center;justify-content:center;padding:10px">${oauthIkon[x]} Logg inn med ${OAUTH[x].navn}</button>`).join("")}</div>
     <p class="note" style="text-align:center;margin:0 0 8px">eller få en innloggingslenke på e-post</p>` : ""}<form class="form" id="lf"><label class="wide">E-postadresse<input type="email" id="lf-epost" required autocomplete="email" placeholder="navn@eksempel.no"></label></form>
-    <p class="note">Du får en innloggingslenke på e-post. Alle kan se banedagboken uten å logge inn. For å kunne endre må e-postadressen være registrert av admin${lev.length ? ", og det gjelder også ved innlogging med " + lev.map(x => OAUTH[x].navn).join(" eller ") : ""}.</p><p id="lf-msg" class="note"></p>`,
+    <p class="note">Alle kan se banedagboken uten å logge inn. Er e-postadressen din registrert av admin, får du rollen din med en gang. Ellers havner du på godkjenningslisten, og admin gir deg rolle og lag.</p><p id="lf-msg" class="note"></p>`,
     `<span class="spacer"></span><button class="btn primary" id="lfGo">Send innloggingslenke</button>`);
   const go = async () => {
     const email = $("#lf-epost").value.trim(); if (!email || !$("#lf-epost").checkValidity()) { $("#lf-epost").focus(); return; }
@@ -3398,11 +3491,12 @@ function openLogin() {
   });
   setTimeout(() => $("#lf-epost")?.focus(), 30);
 }
+const ventTekst = () => `Du er logget inn${S.user?.email ? " som " + esc(S.user.email) : ""}, men er ikke godkjent ennå. Du står på godkjenningslisten, og admin gir deg rolle og lag. Til da ser du det samme som besøkende.`;
 async function refreshRole(session) {
   S.user = session?.user || null; S.me = null;
   if (S.user) { try { const { data, error } = await SB.rpc("min_bruker"); if (!error && data) S.me = data; } catch (e) {} }
   S.ro = !isAdmin();
-  if (S.user && !S.me) setTimeout(() => setStatus(`Du er logget inn som ${esc(S.user.email)}, men er ikke registrert. Be admin legge deg til under Brukere.`), 50);
+  if (S.user && !S.me) setTimeout(() => setStatus(ventTekst()), 50);
   renderAll(); S.backend.reload?.();
 }
 
@@ -3412,7 +3506,7 @@ async function refreshRole(session) {
   if (conf.url && conf.anonKey) {
     try {
       if (!window.supabase) await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js");
-      SB = window.supabase.createClient(conf.url, conf.anonKey);
+      SB = window.supabase.createClient(conf.url, conf.anonKey); hentLeverandorer(conf);
       S.ro = true; S.backend = supabaseBackend(SB);
       SB.auth.onAuthStateChange((_ev, session) => { setTimeout(() => refreshRole(session), 0); });
       S.backend.start(onData);

@@ -9,7 +9,10 @@
 --               og manuelle bookinger (kilde = 'manuell')
 --   treninger   treningstider: faste hver uke i en periode (type = 'fast') eller enkelttreninger (type = 'enkelt')
 --   foresporsler forespørsler om banetid fra trenere (status: ny / godkjent / avslatt)
---   brukere     hvem som kan logge inn og hva de får gjøre (id = e-post med små bokstaver)
+--   brukere     hvem som kan logge inn og hva de får gjøre. Eldre rader har e-posten som id, godkjente fra
+--               godkjenningslisten har id «u-<Supabase-bruker-id>». En bruker kjennes igjen på Supabase-bruker-id
+--               (data.uids) og på e-postadressene sine (data.epost og data.eposter).
+--   ventende    godkjenningslisten: innlogginger som ikke er koblet til en bruker ennå (id = Supabase-bruker-id)
 --   grupper     treningsgrupper: et treningsnavn (f.eks. «G16») koblet til lag på fotball.no
 --   lagkamper   alle kamper for klubbene som bruker banene (også bortekamper), én rad per klubb per måned
 --   gjest       treninger og bookinger på gjesteanlegg, hentet fra Hoopit, én rad per bane per måned
@@ -72,14 +75,24 @@ create table if not exists public.gjest (
 );
 
 create table if not exists public.brukere (
-  id         text primary key check (id = lower(id)),   -- e-postadressen med små bokstaver
-  data       jsonb not null,                            -- {epost, navn, rolle, lag: [...]}
+  id         text primary key check (id = lower(id)),   -- e-post (eldre rader) eller «u-<Supabase-bruker-id>»
+  data       jsonb not null,                            -- {epost, eposter: [...], uids: [...], navn, rolle, lag: [...], dommerId}
   rolle      text generated always as (data->>'rolle') stored check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig', 'dommer')),
   updated_at timestamptz not null default now()
 );
 -- databaser laget før rollen dommeransvarlig fantes: oppdater sjekken
 alter table public.brukere drop constraint if exists brukere_rolle_check;
 alter table public.brukere add constraint brukere_rolle_check check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig', 'dommer'));
+
+create index if not exists brukere_uids on public.brukere using gin ((data->'uids'));
+create index if not exists brukere_eposter on public.brukere using gin ((data->'eposter'));
+
+-- Godkjenningslisten: den som logger inn uten å være kjent, havner her til admin godkjenner
+create table if not exists public.ventende (
+  id         text primary key,                          -- Supabase-bruker-id (auth.users.id)
+  data       jsonb not null,                            -- {uid, epost, navn, leverandor, forst, sist}
+  updated_at timestamptz not null default now()
+);
 
 create table if not exists public.dommere (
   id         text primary key,
@@ -108,7 +121,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag'] loop
+  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag', 'ventende'] loop
     execute format('drop trigger if exists %I_updated_at on public.%I', t, t);
     execute format('create trigger %I_updated_at before update on public.%I for each row execute function public.sett_updated_at()', t, t);
   end loop;
@@ -118,14 +131,48 @@ end $$;
 create or replace function public.min_epost() returns text
 language sql stable as $$ select lower(coalesce(auth.jwt() ->> 'email', '')) $$;
 
-create or replace function public.min_bruker() returns jsonb
+-- Brukeren (id i brukere) som innlogget person er: først på Supabase-bruker-id, ellers på e-postadressen
+create or replace function public.min_brukerid() returns text
 language sql stable security definer set search_path = public as $$
-  select data from public.brukere where id = public.min_epost();
+  select coalesce(
+    (select id from public.brukere where data->'uids' ? coalesce(auth.uid()::text, '') limit 1),
+    (select id from public.brukere where public.min_epost() <> ''
+       and (lower(data->>'epost') = public.min_epost() or data->'eposter' ? public.min_epost()) limit 1),
+    '');
 $$;
+
+-- Kalles av nettsiden etter innlogging. Kjent bruker: Supabase-bruker-id kobles til brukeren (første gang),
+-- og brukeren returneres med id. Ukjent: personen legges i godkjenningslisten, og svaret er null.
+drop function if exists public.min_bruker();
+create function public.min_bruker() returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  u    text := coalesce(auth.uid()::text, '');
+  bid  text;
+  d    jsonb;
+  meta jsonb := coalesce(auth.jwt() -> 'user_metadata', '{}'::jsonb);
+begin
+  if u = '' then return null; end if;
+  bid := public.min_brukerid();
+  if bid <> '' then
+    -- vilkåret i where gjør at to samtidige innlogginger ikke legger inn samme id to ganger
+    update public.brukere set data = jsonb_set(data, '{uids}', coalesce(data->'uids', '[]'::jsonb) || to_jsonb(u))
+      where id = bid and not coalesce(data->'uids', '[]'::jsonb) ? u;
+    select data into d from public.brukere where id = bid;
+    delete from public.ventende where id = u;
+    return d || jsonb_build_object('id', bid);
+  end if;
+  insert into public.ventende (id, data) values (u, jsonb_build_object(
+      'uid', u, 'epost', public.min_epost(), 'navn', coalesce(meta->>'full_name', meta->>'name', ''),
+      'leverandor', coalesce(auth.jwt() -> 'app_metadata' ->> 'provider', 'email'), 'forst', now(), 'sist', now()))
+  on conflict (id) do update set data = public.ventende.data
+      || jsonb_build_object('epost', excluded.data->'epost', 'leverandor', excluded.data->'leverandor', 'sist', now());
+  return null;
+end $$;
 
 create or replace function public.min_rolle() returns text
 language sql stable security definer set search_path = public as $$
-  select coalesce((select rolle from public.brukere where id = public.min_epost()), '');
+  select coalesce((select rolle from public.brukere where id = public.min_brukerid()), '');
 $$;
 
 create or replace function public.er_admin() returns boolean
@@ -137,7 +184,7 @@ language sql stable as $$ select public.min_rolle() in ('admin', 'dommeransvarli
 -- Dommeren som innlogget bruker er koblet til (brukere.data.dommerId), eller ''
 create or replace function public.min_dommer() returns text
 language sql stable security definer set search_path = public as $$
-  select coalesce((select data->>'dommerId' from public.brukere where id = public.min_epost()), '');
+  select coalesce((select data->>'dommerId' from public.brukere where id = public.min_brukerid()), '');
 $$;
 
 -- En dommer kan bare endre egen kontaktinfo (telefon og e-post), ikke navn, kamptyper, kompetanse eller aktiv
@@ -156,13 +203,48 @@ create or replace function public.har_lag(lag text) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (
     select 1 from public.brukere
-    where id = public.min_epost() and rolle in ('trener', 'trener_pluss')
+    where id = public.min_brukerid() and rolle in ('trener', 'trener_pluss')
       and coalesce(data->'lag', '[]'::jsonb) ? coalesce(lag, '')
   );
 $$;
 
-revoke all on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost() from public;
-grant execute on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost() to anon, authenticated;
+-- Er forespørselen sendt av innlogget bruker? Nye har brukerId, eldre bare e-post.
+-- Eldre forespørsler uten brukerId er mine når e-posten er en av e-postadressene mine.
+create or replace function public.er_min(d jsonb) returns boolean
+language sql stable security definer set search_path = public as $$
+  select case when coalesce(d->>'brukerId', '') <> '' then d->>'brukerId' = public.min_brukerid()
+              else coalesce(d->>'epost', '') <> '' and (lower(d->>'epost') = public.min_epost()
+                   or exists (select 1 from public.brukere b where b.id = public.min_brukerid()
+                              and (lower(b.data->>'epost') = lower(d->>'epost') or b.data->'eposter' ? lower(d->>'epost')))) end;
+$$;
+
+-- En e-postadresse eller innlogging kan bare høre til én bruker
+create or replace function public.sjekk_unik_bruker() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare e text; u text;
+begin
+  for e in select distinct lower(x) from (
+      select new.data->>'epost' as x
+      union all select jsonb_array_elements_text(coalesce(new.data->'eposter', '[]'::jsonb))) s
+    where coalesce(x, '') <> '' loop
+    if exists (select 1 from public.brukere b where b.id <> new.id
+               and (lower(b.data->>'epost') = e or b.data->'eposter' ? e)) then
+      raise exception 'E-postadressen % hører allerede til en annen bruker.', e using errcode = '23505';
+    end if;
+  end loop;
+  for u in select jsonb_array_elements_text(coalesce(new.data->'uids', '[]'::jsonb)) loop
+    if exists (select 1 from public.brukere b where b.id <> new.id and b.data->'uids' ? u) then
+      raise exception 'Innloggingen er allerede koblet til en annen bruker.' using errcode = '23505';
+    end if;
+  end loop;
+  return new;
+end $$;
+drop trigger if exists brukere_unik on public.brukere;
+create trigger brukere_unik before insert or update on public.brukere
+  for each row execute function public.sjekk_unik_bruker();
+
+revoke all on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost(), public.min_brukerid(), public.er_min(jsonb) from public;
+grant execute on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost(), public.min_brukerid(), public.er_min(jsonb) to anon, authenticated;
 
 -- Trenere kan bare avlyse enkeltdager på faste treningstider. Trener+ kan i tillegg endre enkelttreninger.
 create or replace function public.sjekk_trener_endring() returns trigger
@@ -184,7 +266,8 @@ create trigger treninger_trener_endring before update on public.treninger
 create or replace function public.behold_en_admin() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if old.rolle = 'admin' and (tg_op = 'DELETE' or new.rolle is distinct from 'admin')
+  -- new.rolle (beregnet kolonne) er ikke satt ennå i en before-trigger, så rollen leses fra data
+  if old.rolle = 'admin' and (tg_op = 'DELETE' or new.data->>'rolle' is distinct from 'admin')
      and not exists (select 1 from public.brukere where rolle = 'admin' and id <> old.id) then
     raise exception 'Det må finnes minst én admin. Legg til en ny admin først.' using errcode = '42501';
   end if;
@@ -230,13 +313,14 @@ alter table public.lagkamper    enable row level security;
 alter table public.gjest        enable row level security;
 alter table public.dommere      enable row level security;
 alter table public.dommeroppdrag enable row level security;
+alter table public.ventende     enable row level security;
 
 -- Fjern alle tidligere regler på tabellene, så fila kan kjøres på nytt
 do $$
 declare r record;
 begin
   for r in select policyname, tablename from pg_policies
-           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag') loop
+           where schemaname = 'public' and tablename in ('config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag', 'ventende') loop
     execute format('drop policy %I on public.%I', r.policyname, r.tablename);
   end loop;
 end $$;
@@ -294,17 +378,17 @@ create policy "alle kan lese" on public.gjest for select to anon, authenticated 
 
 -- foresporsler: trenere sender og ser sine egne, admin ser og behandler alle
 create policy "admin og avsender leser" on public.foresporsler for select to authenticated
-  using (public.er_admin() or epost = public.min_epost());
+  using (public.er_admin() or public.er_min(data));
 create policy "trenere sender" on public.foresporsler for insert to authenticated
-  with check (public.er_admin() or (epost = public.min_epost() and status = 'ny' and public.har_lag(data->>'lag')));
+  with check (public.er_admin() or (public.er_min(data) and status = 'ny' and public.har_lag(data->>'lag')));
 create policy "admin behandler" on public.foresporsler for update to authenticated
   using (public.er_admin()) with check (public.er_admin());
 create policy "admin og avsender sletter" on public.foresporsler for delete to authenticated
-  using (public.er_admin() or (epost = public.min_epost() and status = 'ny'));
+  using (public.er_admin() or (public.er_min(data) and status = 'ny'));
 
 -- brukere: admin ser og endrer alle, andre ser bare seg selv
 create policy "admin og en selv leser" on public.brukere for select to authenticated
-  using (public.er_admin() or id = public.min_epost());
+  using (public.er_admin() or id = public.min_brukerid());
 create policy "admin endrer" on public.brukere for all to authenticated
   using (public.er_admin()) with check (public.er_admin());
 -- dommeransvarlig gir og tar bort innlogging for dommere (bare brukere med rollen dommer)
@@ -315,7 +399,12 @@ create policy "dommeransvarlig endrer dommerbrukere" on public.brukere for all t
 
 grant select on public.config, public.kamper, public.treninger to anon, authenticated;
 grant insert, update, delete on public.config, public.kamper, public.treninger to authenticated;
-grant select, insert, update, delete on public.foresporsler, public.brukere to authenticated;
+-- ventende: admin ser og behandler godkjenningslisten. Nye rader legges inn av min_bruker().
+create policy "admin behandler" on public.ventende for all to authenticated using (public.er_admin()) with check (public.er_admin());
+create policy "en selv leser" on public.ventende for select to authenticated using (id = auth.uid()::text);
+
+grant select, insert, update, delete on public.foresporsler, public.brukere, public.ventende to authenticated;
+grant select on public.ventende to anon;
 -- anon får lese, men tilgangsreglene over gir dem ingen rader
 grant select on public.foresporsler, public.brukere to anon;
 grant select on public.grupper, public.lagkamper, public.gjest to anon, authenticated;
@@ -329,7 +418,7 @@ do $$
 declare t text;
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag'] loop
+    foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag', 'ventende'] loop
       if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
         execute format('alter publication supabase_realtime add table public.%I', t);
       end if;
