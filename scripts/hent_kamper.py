@@ -254,10 +254,20 @@ def finn_delbane(cfg: dict, anlegg: dict, banenavn: str) -> tuple[dict, dict, bo
 
 
 # ---------------------------------------------------------------- hovedløp
+def les_dato(tekst):
+    """Dato som 2026-01-01 eller norsk 01.01.2026 (også 1.1.2026)."""
+    t = tekst.strip()
+    m = re.fullmatch(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", t)
+    try:
+        return dt.date(int(m[3]), int(m[2]), int(m[1])) if m else dt.date.fromisoformat(t)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"«{tekst}» er ikke en dato. Skriv 2026-01-01 eller 01.01.2026.")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--fra", type=dt.date.fromisoformat, help="første dato (YYYY-MM-DD)")
-    p.add_argument("--til", type=dt.date.fromisoformat, help="siste dato (YYYY-MM-DD)")
+    p.add_argument("--fra", type=les_dato, help="første dato (2026-01-01 eller 01.01.2026)")
+    p.add_argument("--til", type=les_dato, help="siste dato (2026-12-31 eller 31.12.2026)")
     p.add_argument("--tørrkjøring", "--dry-run", dest="dry", action="store_true", help="ikke skriv til databasen")
     args = p.parse_args()
 
