@@ -1,0 +1,46 @@
+name: Hent kamper fra fotball.no
+
+on:
+  schedule:
+    # Hver natt kl. 03:17 UTC (04:17 vintertid / 05:17 sommertid i Norge)
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      fra:
+        description: "Fra dato (YYYY-MM-DD). Tom = 60 dager tilbake"
+        required: false
+      til:
+        description: "Til dato (YYYY-MM-DD). Tom = 365 dager fram"
+        required: false
+      torrkjoring:
+        description: "Bare vis endringer, ikke lagre"
+        type: boolean
+        default: false
+
+concurrency:
+  group: hent-kamper
+  cancel-in-progress: false
+
+jobs:
+  hent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install openpyxl==3.1.5
+      - name: Hent og lagre kamper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FRA: ${{ inputs.fra }}
+          TIL: ${{ inputs.til }}
+          TORR: ${{ inputs.torrkjoring }}
+        run: |
+          args=()
+          [ -n "$FRA" ] && args+=(--fra "$FRA")
+          [ -n "$TIL" ] && args+=(--til "$TIL")
+          [ "$TORR" = "true" ] && args+=(--tørrkjøring)
+          python scripts/hent_kamper.py "${args[@]}"

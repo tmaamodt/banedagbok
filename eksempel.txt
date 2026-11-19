@@ -1,2 +1,0 @@
-Dette er en liten testfil.
-Den har to linjer og noen få ord.
