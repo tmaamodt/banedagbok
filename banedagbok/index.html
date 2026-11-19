@@ -373,6 +373,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
     <button role="tab" data-view="foresporsler" data-for="trener" aria-selected="false">Forespørsler<span class="badge" id="reqBadge" hidden></span></button>
     <button role="tab" data-view="lag" data-for="alle" aria-selected="false">Lag</button>
     <button role="tab" data-view="kamper" data-for="alle" aria-selected="false">Kamper og bookinger</button>
+    <button role="tab" data-view="minedommer" data-for="megdommer" aria-selected="false">Mine dommeroppdrag</button>
     <button role="tab" data-view="dommere" data-for="dommer" aria-selected="false">Dommere</button>
     <button role="tab" data-view="brukere" data-for="admin" aria-selected="false">Brukere</button>
     <button role="tab" data-view="import" data-for="admin" aria-selected="false">Hent fra fotball.no</button>
@@ -531,6 +532,26 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
   </section>
 
   <!-- BRUKERE -->
+  <section id="v-minedommer" hidden>
+    <div class="cols dommercols">
+      <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
+        <h2>Mine dommeroppdrag</h2>
+        <div class="sched" id="mdKommende"></div>
+        <details><summary class="note" style="cursor:pointer">Tidligere oppdrag (siste 60 dager)</summary><div class="sched" id="mdTidligere" style="margin-top:8px"></div></details>
+      </div>
+      <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
+        <h2>Meg som dommer</h2>
+        <div id="mdInfo"></div>
+        <form class="form" id="mdf">
+          <label>Telefon<input type="tel" id="md-tlf"></label>
+          <label>E-post<input type="email" id="md-epost"></label>
+          <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit">Lagre kontaktinfo</button><span class="note" id="md-msg"></span></div>
+        </form>
+        <p class="note">Navn, kamptyper og kompetanse endres av dommeransvarlig. E-posten du logger inn med, endres også av dommeransvarlig.</p>
+      </div>
+    </div>
+  </section>
+
   <section id="v-dommere" hidden>
     <div class="cols dommercols">
       <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
@@ -544,9 +565,10 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <div style="grid-column:1/-1;display:grid;gap:4px"><span class="note">Kan dømme</span><div class="bar" id="df-typer"></div></div>
           <div style="grid-column:1/-1;display:grid;gap:4px"><span class="note">Kompetanse</span><div class="bar" id="df-komp"><label class="check"><input type="checkbox" value="klubbdommer"> Klubbdommer</label><label class="check"><input type="checkbox" value="kretsdommer"> Kretsdommer</label></div></div>
           <label class="check" style="grid-column:1/-1"><input type="checkbox" id="df-aktiv" checked> Aktiv (kan settes opp på kamper)</label>
+          <label class="check" style="grid-column:1/-1"><input type="checkbox" id="df-login"> Kan logge inn og se egne dommeroppdrag (bruker e-posten over)</label>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit" id="df-lagre">Lagre dommer</button><button class="btn ghost" type="button" id="df-avbryt">Avbryt</button><button class="btn danger" type="button" id="df-slett" hidden>Slett dommer</button><span class="note" id="df-msg"></span></div>
         </form>
-        <div class="tablewrap"><table><thead><tr><th>Aktiv</th><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th>Kompetanse</th><th class="num">Oppdrag</th></tr></thead><tbody id="dList"></tbody></table></div>
+        <div class="tablewrap"><table><thead><tr><th>Aktiv</th><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th>Kompetanse</th><th class="num">Oppdrag</th><th>Innlogging</th></tr></thead><tbody id="dList"></tbody></table></div>
       </div>
       <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
         <div class="bar"><h2>Kamper og dommere</h2><span class="spacer"></span>
@@ -780,11 +802,14 @@ const saveUi = () => { try { localStorage.setItem("banedagbok:ui", JSON.stringif
 const COLS = ["treninger", "kamper", "foresporsler", "brukere", "grupper", "lagkamper", "gjest", "dommere", "dommeroppdrag"];
 
 // ---------- roller ----------
-const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener", dommeransvarlig: "Dommeransvarlig" };
+const ROLLER = { admin: "Admin", trener_pluss: "Trener+", trener: "Trener", dommeransvarlig: "Dommeransvarlig", dommer: "Dommer" };
 const rolle = () => S.me?.rolle || null;
 const isAdmin = () => rolle() === "admin";
 const isDomAnsv = () => rolle() === "dommeransvarlig";
 const kanDommer = () => isAdmin() || isDomAnsv();
+// Innlogget bruker som er koblet til en dommer i dommerregisteret (rollen dommer, eller en annen bruker med dommerId)
+const minDommerId = () => S.me?.dommerId || null;
+const isDommer = () => !!minDommerId();
 const isTrainer = () => rolle() === "trener" || rolle() === "trener_pluss";
 const myLag = () => S.me?.lag || [];
 const isEnkelt = t => t?.type === "enkelt";
@@ -1452,14 +1477,14 @@ function renderAll() {
   computeMe(); renderLagSel();
   $("#lagList").innerHTML = (S.cfg.lag || []).map(l => `<option value="${esc(l)}"></option>`).join("");
   renderStatus(); applyRoleUI(); renderWeek(); renderSeason(); renderTrainList(); renderKampList(); renderImport(); renderOppsett();
-  renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); if (S.view === "dommere") renderDommere(); applyRo();
+  renderRequestForm(); renderRequests(); renderUsers(); if (S.view === "lag") renderLag(); if (S.view === "dommere") renderDommere(); if (S.view === "minedommer") renderMineDommer(); applyRo();
 }
 function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").forEach(d => d.classList.toggle("addable", !erGjest(curA()) && (isAdmin() || canRequest()))); }
-const erBesok = () => !isAdmin() && !isTrainer() && !isDomAnsv();
+const erBesok = () => !isAdmin() && !isTrainer() && !isDomAnsv() && !isDommer();
 function tabAllowed(v) {
   if (erBesok()) return v === "uke"; // besøkende ser bare uka
   const f = $(`nav.tabs [data-view="${v}"]`)?.dataset.for;
-  return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin()) || (f === "dommer" && kanDommer());
+  return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin()) || (f === "dommer" && kanDommer()) || (f === "megdommer" && isDommer());
 }
 function applyRoleUI() {
   document.body.classList.toggle("besok", erBesok());
@@ -1562,8 +1587,8 @@ function renderDommere() {
   for (const [kid, o] of Object.entries(S.dommeroppdrag)) if ((S.kamper[kid]?.dato || "") >= idag) oppdrag[o.dommerId] = (oppdrag[o.dommerId] || 0) + 1;
   const ds = Object.entries(S.dommere).sort(([, x], [, y]) => (x.aktiv === false) - (y.aktiv === false) || x.navn.localeCompare(y.navn, "nb"));
   $("#dList").innerHTML = ds.length ? ds.map(([id, d]) => `<tr class="click${d.aktiv === false ? " muted" : ""}" data-did="${esc(id)}"><td><input type="checkbox" data-aktiv="${esc(id)}"${d.aktiv !== false ? " checked" : ""} aria-label="${esc(d.navn)} er aktiv"></td><td><b>${esc(d.navn)}</b>${d.aktiv === false ? ` <span class="muted">(ikke aktiv)</span>` : ""}</td><td>${esc(kortNavn(d.navn))}</td>
-      <td>${[d.telefon, d.epost].filter(Boolean).map(esc).join("<br>")}</td><td class="num">${esc(d.fodselsar || "")}</td><td>${(d.kamptyper || []).map(t => t + "er").join(", ")}</td><td>${(d.kompetanse || []).map(x => KOMPETANSE[x] || x).join(", ")}</td><td class="num">${oppdrag[id] || ""}</td></tr>`).join("")
-    : `<tr><td colspan="8" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
+      <td>${[d.telefon, d.epost].filter(Boolean).map(esc).join("<br>")}</td><td class="num">${esc(d.fodselsar || "")}</td><td>${(d.kamptyper || []).map(t => t + "er").join(", ")}</td><td>${(d.kompetanse || []).map(x => KOMPETANSE[x] || x).join(", ")}</td><td class="num">${oppdrag[id] || ""}</td><td>${Object.values(S.brukere).some(u => u.dommerId === id) ? "Ja" : ""}</td></tr>`).join("")
+    : `<tr><td colspan="9" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
   // kamper
   const bare = $("#dkMangler").checked, liste = dommerKamper(+$("#dkPeriode").value).filter(([id, k]) => !bare || !dommerFor(id, k) || S.dommeroppdrag[id]);
   // oppdrag satt opp før reglene: dommer på to kamper samtidig, eller dommer som ikke er aktiv
@@ -1581,7 +1606,8 @@ function initDommere() {
   const vis = (id) => { red = id; const d = id ? S.dommere[id] : {}; f.hidden = false; renderDommere();
     $("#df-navn").value = d.navn || ""; $("#df-ar").value = d.fodselsar || ""; $("#df-tlf").value = d.telefon || ""; $("#df-epost").value = d.epost || ""; $("#df-aktiv").checked = d.aktiv !== false;
     $$("#df-typer input").forEach(c => { c.checked = (d.kamptyper || []).includes(c.value); });
-    $$("#df-komp input").forEach(c => { c.checked = (d.kompetanse || []).includes(c.value); }); $("#df-slett").hidden = !id; $("#df-msg").textContent = ""; $("#df-navn").focus(); };
+    $$("#df-komp input").forEach(c => { c.checked = (d.kompetanse || []).includes(c.value); });
+    $("#df-login").checked = !!id && Object.values(S.brukere).some(u => u.dommerId === id); $("#df-slett").hidden = !id; $("#df-msg").textContent = ""; $("#df-navn").focus(); };
   $("#dNy").onclick = () => vis(null);
   $("#df-avbryt").onclick = () => { f.hidden = true; red = null; };
   $("#dList").addEventListener("click", e => { if (e.target.closest("[data-aktiv]")) return; const tr = e.target.closest("[data-did]"); if (tr) vis(tr.dataset.did); });
@@ -1602,7 +1628,8 @@ function initDommere() {
     const kamptyper = $$("#df-typer input:checked").map(c => c.value); if (!kamptyper.length) { msg.innerHTML = `<span class="err">Velg minst én kamptype.</span>`; return; }
     const d = { navn, fodselsar: +$("#df-ar").value || null, telefon: $("#df-tlf").value.trim(), epost: $("#df-epost").value.trim().toLowerCase(), kamptyper, kompetanse: $$("#df-komp input:checked").map(c => c.value), aktiv: $("#df-aktiv").checked };
     try {
-      const id = red || "dom-" + uid(); await S.backend.put("dommere", id, d);
+      const id = red || "dom-" + uid(); await S.backend.put("dommere", id, { ...(red ? S.dommere[red] : {}), ...d });
+      await dommerInnlogging(id, d, $("#df-login").checked);
       // kortnavnet på kommende oppdrag følger med hvis navnet endres
       for (const [kid, o] of Object.entries(S.dommeroppdrag)) if (o.dommerId === id && o.navn !== kortNavn(navn)) await S.backend.put("dommeroppdrag", kid, { ...o, navn: kortNavn(navn) });
       f.hidden = true; red = null; flash(`${esc(navn)} er lagret.`); renderDommere();
@@ -1611,9 +1638,53 @@ function initDommere() {
   confirmBtn($("#df-slett"), "Bekreft sletting", async () => {
     const id = red; if (!id) return;
     for (const [kid, o] of Object.entries(S.dommeroppdrag)) if (o.dommerId === id) await S.backend.del("dommeroppdrag", kid);
+    await dommerInnlogging(id, S.dommere[id] || {}, false);
     await S.backend.del("dommere", id); f.hidden = true; red = null; flash("Dommeren er slettet, og oppdragene er fjernet."); renderDommere();
   });
   ["#dkPeriode", "#dkMangler"].forEach(x => $(x).onchange = renderDommere);
+}
+// Innlogging for en dommer: en bruker med rollen dommer og dommerId, med dommerens e-post som innlogging.
+// Er e-posten allerede en annen bruker (f.eks. trener), kan bare admin koble dommeren til den brukeren.
+async function dommerInnlogging(id, d, på) {
+  const koblet = Object.entries(S.brukere).filter(([, u]) => u.dommerId === id), ep = (d.epost || "").trim().toLowerCase();
+  if (!på) {
+    for (const [bid, u] of koblet) { if (u.rolle === "dommer") await S.backend.del("brukere", bid); else if (isAdmin()) { const nu = clone(u); delete nu.dommerId; await S.backend.put("brukere", bid, nu); } }
+    return;
+  }
+  if (!ep) throw new Error("Legg inn e-post, så dommeren kan logge inn med den.");
+  for (const [bid, u] of koblet) if (bid !== ep && u.rolle === "dommer") await S.backend.del("brukere", bid); // ny e-post
+  const u = S.brukere[ep];
+  if (u && u.rolle !== "dommer") {
+    if (u.dommerId === id) return;
+    if (!isAdmin()) throw new Error(`${ep} er allerede bruker som ${ROLLER[u.rolle] || u.rolle}. Be admin koble dommeren til brukeren.`);
+    await S.backend.put("brukere", ep, { ...u, dommerId: id }); return;
+  }
+  await S.backend.put("brukere", ep, { epost: ep, navn: d.navn, rolle: "dommer", dommerId: id, lag: [] });
+}
+// Mine dommeroppdrag og kontaktinfo for innlogget dommer
+function renderMineDommer() {
+  const id = minDommerId(); if (!id) return;
+  const d = S.dommere[id] || {}, idag = ymd(new Date()), fra = ymd(addDays(new Date(), -60));
+  const mine = Object.entries(S.dommeroppdrag).filter(([kid, o]) => o.dommerId === id && S.kamper[kid]).map(([kid]) => [kid, S.kamper[kid]])
+    .sort(([, x], [, y]) => (x.dato + x.tid).localeCompare(y.dato + y.tid));
+  const rad = ([kid, k]) => { const a = anlegg(k.anleggId);
+    return `<div class="row click" data-mdkamp="${esc(kid)}"><span class="num">${fmtDate(k.dato)} ${esc(k.tid)}</span><span class="num">${esc(kampType(k))}er</span>
+      <span class="what"><b>${esc((k.hjemmelag || "").trim())} – ${esc((k.bortelag || "").trim())}</b><br><span class="muted">${esc(delLabel(a, k.delbaneId))}, ${esc(a?.navn || "")}${k.kilde === "treningskamp" ? " · treningskamp" : k.turnering ? " · " + esc(k.turnering) : ""}</span></span></div>`; };
+  const kommende = mine.filter(([, k]) => k.dato >= idag), tidligere = mine.filter(([, k]) => k.dato < idag && k.dato >= fra).reverse();
+  $("#mdKommende").innerHTML = kommende.length ? kommende.map(rad).join("") : `<p class="note">Du har ingen kommende dommeroppdrag.</p>`;
+  $("#mdTidligere").innerHTML = tidligere.length ? tidligere.map(rad).join("") : `<p class="note">Ingen.</p>`;
+  $("#mdInfo").innerHTML = `<dl class="kv"><dt>Navn</dt><dd>${esc(d.navn || S.me?.navn || "")}</dd>${d.fodselsar ? `<dt>Født</dt><dd class="num">${esc(d.fodselsar)}</dd>` : ""}
+    <dt>Kan dømme</dt><dd>${(d.kamptyper || []).map(t => t + "er").join(", ") || "–"}</dd><dt>Kompetanse</dt><dd>${(d.kompetanse || []).map(x => KOMPETANSE[x] || x).join(", ") || "–"}</dd>
+    <dt>Status</dt><dd>${d.aktiv === false ? `<span class="warn">Ikke aktiv. Du blir ikke satt opp på nye kamper.</span>` : "Aktiv"}</dd></dl>`;
+  if (!$("#mdf").contains(document.activeElement)) { $("#md-tlf").value = d.telefon || ""; $("#md-epost").value = d.epost || ""; }
+}
+function initMineDommer() {
+  $("#mdKommende").parentElement.parentElement.addEventListener("click", e => { const r = e.target.closest("[data-mdkamp]"); if (r) showKamp(r.dataset.mdkamp); });
+  $("#mdf").onsubmit = async e => {
+    e.preventDefault(); const id = minDommerId(), d = S.dommere[id]; if (!id || !d) return;
+    try { await S.backend.put("dommere", id, { ...d, telefon: $("#md-tlf").value.trim(), epost: $("#md-epost").value.trim().toLowerCase() }); $("#md-msg").innerHTML = `<span class="ok">Lagret.</span>`; }
+    catch (er) { $("#md-msg").innerHTML = `<span class="err">${esc(errText(er))}</span>`; }
+  };
 }
 // Hvilket lag i banedagboken en kamp fra fotball.no hører til (via koblingene under Lag)
 let _klSrc = null, _klMap = new Map();
@@ -3233,11 +3304,12 @@ function initOppsett() {
 // ---------- navigation & events ----------
 function show(v) {
   S.view = v; $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === v)));
-  for (const id of ["uke", "treninger", "plan", "lag", "foresporsler", "kamper", "dommere", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
+  for (const id of ["uke", "treninger", "plan", "lag", "foresporsler", "kamper", "minedommer", "dommere", "brukere", "import", "oppsett"]) $("#v-" + id).hidden = id !== v;
   if (v === "lag") renderLag();
   if (v === "uke") renderWeek();
   if (v === "plan") renderPlan();
   if (v === "dommere") renderDommere();
+  if (v === "minedommer") renderMineDommer();
 }
 $$("nav.tabs button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#ukeLag").onchange = e => { S.ukeLag = e.target.value || null; saveUi(); renderWeek(); };
@@ -3281,7 +3353,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
 $("#impGo").onclick = runImport;
 
-initMerking(); initDommere(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
+initMerking(); initDommere(); initMineDommer(); initTrainForm(); initOppsett(); initRequestForm(); initUsers(); initPlan(); initLag(); initPresets(); renderAll();
 
 // ---------- innlogging (bare med Supabase) ----------
 function renderAuth() {

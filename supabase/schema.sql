@@ -74,12 +74,12 @@ create table if not exists public.gjest (
 create table if not exists public.brukere (
   id         text primary key check (id = lower(id)),   -- e-postadressen med små bokstaver
   data       jsonb not null,                            -- {epost, navn, rolle, lag: [...]}
-  rolle      text generated always as (data->>'rolle') stored check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig')),
+  rolle      text generated always as (data->>'rolle') stored check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig', 'dommer')),
   updated_at timestamptz not null default now()
 );
 -- databaser laget før rollen dommeransvarlig fantes: oppdater sjekken
 alter table public.brukere drop constraint if exists brukere_rolle_check;
-alter table public.brukere add constraint brukere_rolle_check check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig'));
+alter table public.brukere add constraint brukere_rolle_check check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig', 'dommer'));
 
 create table if not exists public.dommere (
   id         text primary key,
@@ -133,6 +133,23 @@ language sql stable as $$ select public.min_rolle() = 'admin' $$;
 
 create or replace function public.er_dommeransvarlig() returns boolean
 language sql stable as $$ select public.min_rolle() in ('admin', 'dommeransvarlig') $$;
+
+-- Dommeren som innlogget bruker er koblet til (brukere.data.dommerId), eller ''
+create or replace function public.min_dommer() returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce((select data->>'dommerId' from public.brukere where id = public.min_epost()), '');
+$$;
+
+-- En dommer kan bare endre egen kontaktinfo (telefon og e-post), ikke navn, kamptyper, kompetanse eller aktiv
+create or replace function public.sjekk_dommer_endring() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.er_dommeransvarlig()
+     and (new.data - 'telefon' - 'epost') is distinct from (old.data - 'telefon' - 'epost') then
+    raise exception 'Du kan bare endre telefon og e-post.' using errcode = '42501';
+  end if;
+  return new;
+end $$;
 
 -- Er innlogget bruker trener (eller trener+) for dette laget?
 create or replace function public.har_lag(lag text) returns boolean
@@ -259,9 +276,14 @@ create policy "admin og trener+ endrer egne" on public.grupper for all to authen
 create policy "alle kan lese" on public.lagkamper for select to anon, authenticated using (true);
 create policy "admin endrer" on public.lagkamper for all to authenticated using (public.er_admin()) with check (public.er_admin());
 
--- dommere: personopplysninger, bare admin og dommeransvarlig ser og endrer dem
+-- dommere: personopplysninger, bare admin og dommeransvarlig ser og endrer dem. Dommeren ser og endrer kontaktinfo for seg selv.
 create policy "dommeransvarlig ser og endrer" on public.dommere for all to authenticated
   using (public.er_dommeransvarlig()) with check (public.er_dommeransvarlig());
+create policy "dommer ser seg selv" on public.dommere for select to authenticated using (id = public.min_dommer());
+create policy "dommer endrer egen kontaktinfo" on public.dommere for update to authenticated
+  using (id = public.min_dommer()) with check (id = public.min_dommer());
+drop trigger if exists dommere_egen_endring on public.dommere;
+create trigger dommere_egen_endring before update on public.dommere for each row execute function public.sjekk_dommer_endring();
 -- dommeroppdrag: alle ser kortnavnet på kampen; admin og dommeransvarlig setter opp
 create policy "alle kan lese" on public.dommeroppdrag for select to anon, authenticated using (true);
 create policy "dommeransvarlig setter opp" on public.dommeroppdrag for all to authenticated
@@ -285,6 +307,11 @@ create policy "admin og en selv leser" on public.brukere for select to authentic
   using (public.er_admin() or id = public.min_epost());
 create policy "admin endrer" on public.brukere for all to authenticated
   using (public.er_admin()) with check (public.er_admin());
+-- dommeransvarlig gir og tar bort innlogging for dommere (bare brukere med rollen dommer)
+create policy "dommeransvarlig ser dommerbrukere" on public.brukere for select to authenticated
+  using (public.er_dommeransvarlig() and rolle = 'dommer');
+create policy "dommeransvarlig endrer dommerbrukere" on public.brukere for all to authenticated
+  using (public.er_dommeransvarlig() and rolle = 'dommer') with check (public.er_dommeransvarlig() and rolle = 'dommer');
 
 grant select on public.config, public.kamper, public.treninger to anon, authenticated;
 grant insert, update, delete on public.config, public.kamper, public.treninger to authenticated;

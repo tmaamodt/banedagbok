@@ -18,6 +18,7 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 | Trener | Avlyse enkeltøkter av faste treninger, og avlyse (slette) enkelttreninger, treningskamper og bookinger for egne lag. Sende forespørsel om enkelttrening eller treningskamp. |
 | Trener+ | Alt en trener kan, og i tillegg booke og endre enkelttreninger og treningskamper for egne lag direkte. |
 | Dommeransvarlig | Administrere lokale dommere og sette dem opp på kamper (fanen Dommere). Ser ellers det samme som en besøkende med innlogging. |
+| Dommer | Se egne dommeroppdrag og endre egen telefon og e-post (fanen Mine dommeroppdrag). |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
 
 Det finnes to typer treninger:
@@ -164,7 +165,9 @@ Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholde
 - **Dommerregisteret:** navn, telefon, e-post, fødselsår, hvilke kamptyper dommeren kan dømme (5er, 7er, 9er, 11er) og kompetanse (klubbdommer, kretsdommer). Med avkrysningen «Aktiv» i lista kan en dommer settes som ikke aktiv uten å slettes. Ikke aktive dommere kan ikke settes opp på kamper. Er dommeren allerede satt opp på kommende kamper, får du beskjed, og kampene merkes i lista.
 - **Kamper og dommere:** hjemmekamper og treningskamper på egne anlegg for valgt periode, med valg av lokal dommer. Lista viser bare aktive dommere som kan dømme kamptypen. Samme dommer kan ikke settes opp på to kamper samtidig. Kamptiden regnes fra avspark til slutt, uten kvarteret banen er holdt av før, så to kamper rett etter hverandre går fint (for eksempel 7er kl. 17:00 på 75 minutter og ny kamp kl. 18:15). Dommere som er opptatt, står som «opptatt» og kan ikke velges.
 
-**Personvern:** navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin. Alle andre ser bare fornavn og første bokstav i etternavnet på lokale dommere, for eksempel «Ola N.». Dommere fra kretsen vises med fullt navn. Databasen stopper andre fra å lese dommerregisteret.
+**Innlogging for dommere:** kryss av for «Kan logge inn» på dommeren i registeret. Da lages en bruker med rollen Dommer og dommerens e-post, så dommeren kan logge inn med den. Fanen **Mine dommeroppdrag** viser kommende og tidligere oppdrag, og trykk på et oppdrag åpner kampen. Der kan dommeren også endre egen telefon og e-post. Navn, kamptyper, kompetanse og e-posten man logger inn med endres av dommeransvarlig. Er e-posten allerede en annen bruker, for eksempel en trener, kan admin koble dommeren til den brukeren. Da får treneren fanen i tillegg. Fjernes avkrysningen, forsvinner innloggingen.
+
+**Personvern:** navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin, og dommeren selv. Alle andre ser bare fornavn og første bokstav i etternavnet på lokale dommere, for eksempel «Ola N.». Dommere fra kretsen vises med fullt navn. Databasen stopper andre fra å lese dommerregisteret.
 
 ## Gjesteanlegg (Hoopit)
 
