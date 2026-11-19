@@ -73,6 +73,7 @@ select, input[type=text], input[type=date], input[type=time], input[type=number]
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px }
 
 /* Besøkende: bare uka, uten verktøy de ikke trenger */
+body.besok.dommervis nav.tabs { display: flex !important }
 .besok nav.tabs, .besok .season, .besok #jumpPrev, .besok #jumpNext, .besok .lkvalg, .besok #status, .besok .alert.info { display: none !important }
 #v-uke > .bar:first-child { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px }
 .ukelegend { gap: 8px 16px; font-size: 12px }
@@ -810,6 +811,8 @@ const kanDommer = () => isAdmin() || isDomAnsv();
 // Innlogget bruker som er koblet til en dommer i dommerregisteret (rollen dommer, eller en annen bruker med dommerId)
 const minDommerId = () => S.me?.dommerId || null;
 const isDommer = () => !!minDommerId();
+// Bare dommer (ikke trener e.l. med dommertilgang): ser det samme som besøkende, pluss Mine dommeroppdrag
+const kunDommer = () => rolle() === "dommer";
 const isTrainer = () => rolle() === "trener" || rolle() === "trener_pluss";
 const myLag = () => S.me?.lag || [];
 const isEnkelt = t => t?.type === "enkelt";
@@ -823,7 +826,7 @@ const canCreateTK = () => isAdmin() || isPluss();
 const canEditKamp = k => isAdmin() || (k.kilde === "treningskamp" && isPluss() && myLag().includes(k.lag));
 const canDeleteBooking = k => isAdmin() || (["manuell", "treningskamp"].includes(k.kilde) && isTrainer() && myLag().includes(k.lag));
 const canRequest = () => isTrainer() && myLag().length > 0;
-const showMerknad = () => !!S.me;
+const showMerknad = () => !!S.me && !kunDommer();
 const isTestMode = () => S.backend && S.backend.name !== "supabase";
 function computeMe() {
   if (S.backend?.name === "supabase") return; // satt av refreshRole
@@ -1404,7 +1407,7 @@ function markConflicts(items, a) {
 // ---------- rendering ----------
 function setStatus(html) { $("#status").innerHTML = html; }
 function renderStatus() {
-  if (erBesok() && S.backend?.name === "supabase") { setStatus(""); renderAuth(); renderViewAs(); return; }
+  if ((erBesok() || kunDommer()) && S.backend?.name === "supabase") { setStatus(""); renderAuth(); renderViewAs(); return; }
   const nT = Object.keys(S.treninger).length, nK = Object.keys(S.kamper).length;
   const where = S.backend?.name === "supabase" ? "Kamper hentes fra fotball.no hver natt" : S.backend?.name === "db" ? "Delt med alle som har tilgang til siden" : "Lagret bare i denne nettleseren";
   setStatus(`<b class="num">${nK}</b> kamper/bookinger · <b class="num">${nT}</b> faste treningstider · ${where}${!S.canWrite ? " · <b>Bare lesetilgang</b>" : ""}`);
@@ -1483,11 +1486,12 @@ function applyRo() { $$(".rw").forEach(b => { b.disabled = S.ro; }); $$(".day").
 const erBesok = () => !isAdmin() && !isTrainer() && !isDomAnsv() && !isDommer();
 function tabAllowed(v) {
   if (erBesok()) return v === "uke"; // besøkende ser bare uka
+  if (kunDommer()) return v === "uke" || v === "minedommer";
   const f = $(`nav.tabs [data-view="${v}"]`)?.dataset.for;
   return f === "alle" || (f === "trener" && (isAdmin() || isTrainer())) || (f === "admin" && isAdmin()) || (f === "dommer" && kanDommer()) || (f === "megdommer" && isDommer());
 }
 function applyRoleUI() {
-  document.body.classList.toggle("besok", erBesok());
+  document.body.classList.toggle("besok", erBesok() || kunDommer()); document.body.classList.toggle("dommervis", kunDommer());
   $$("nav.tabs button").forEach(b => { b.hidden = !tabAllowed(b.dataset.view); });
   if (!tabAllowed(S.view)) show("uke");
   const gj = erGjest(curA()); // gjesteanlegg: bare visning

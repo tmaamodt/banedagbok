@@ -18,7 +18,7 @@ Siden er én fil (`index.html`) og har tre lagringsmåter. Den velger selv:
 | Trener | Avlyse enkeltøkter av faste treninger, og avlyse (slette) enkelttreninger, treningskamper og bookinger for egne lag. Sende forespørsel om enkelttrening eller treningskamp. |
 | Trener+ | Alt en trener kan, og i tillegg booke og endre enkelttreninger og treningskamper for egne lag direkte. |
 | Dommeransvarlig | Administrere lokale dommere og sette dem opp på kamper (fanen Dommere). Ser ellers det samme som en besøkende med innlogging. |
-| Dommer | Se egne dommeroppdrag og endre egen telefon og e-post (fanen Mine dommeroppdrag). |
+| Dommer | Det samme som en besøkende, pluss fanen Mine dommeroppdrag: egne oppdrag, og endre egen telefon og e-post. |
 | Admin | Alt: brukere og lag, faste treningstider, bookinger, anlegg, import, og godkjenne eller avslå forespørsler. |
 
 Det finnes to typer treninger:
