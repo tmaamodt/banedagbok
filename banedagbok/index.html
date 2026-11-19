@@ -758,7 +758,9 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
 // Supabase-oppsett. Fyll inn for å bruke en delt database (se README.md i samme mappe).
 // Begge verdiene finnes i Supabase under Project Settings → API. anon-nøkkelen er laget for å ligge i nettsider;
 // tilgangsreglene i databasen bestemmer hvem som får endre. Legg ALDRI inn service_role-nøkkelen her.
-window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "", anonKey: "" };
+// innlogging: leverandører som er slått på i Supabase (Authentication → Providers), f.eks. ["google", "microsoft"].
+// Innlogging med lenke på e-post virker alltid. Se README.md, «Innlogging med Google og Microsoft».
+window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "", anonKey: "", innlogging: [] };
 </script>
 <script>
 (() => {
@@ -3366,9 +3368,15 @@ function renderAuth() {
   el.innerHTML = `${esc(S.me?.navn || S.user.email)} · ${S.me ? ROLLER[S.me.rolle] + (S.me.lag?.length ? " for " + esc(S.me.lag.join(", ")) : "") : "<b>ikke registrert</b>"} · <button class="btn ghost" id="logoutBtn">Logg ut</button>`;
   $("#logoutBtn").onclick = () => SB.auth.signOut();
 }
+// Innlogging med Google og Microsoft (Supabase kaller Microsoft «azure»). Brukeren kjennes igjen på e-postadressen.
+const OAUTH = { google: { navn: "Google", provider: "google", opts: {} }, microsoft: { navn: "Microsoft", provider: "azure", opts: { scopes: "email" } } };
+const oauthIkon = { google: `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`,
+  microsoft: `<svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>` };
 function openLogin() {
-  openDlg("Logg inn", `<form class="form" id="lf"><label class="wide">E-postadresse<input type="email" id="lf-epost" required autocomplete="email" placeholder="navn@eksempel.no"></label></form>
-    <p class="note">Du får en innloggingslenke på e-post. Alle kan se banedagboken uten å logge inn. Trenere og admins som er registrert av admin, kan endre.</p><p id="lf-msg" class="note"></p>`,
+  const lev = ((window.BANEDAGBOK_SUPABASE || {}).innlogging || []).filter(x => OAUTH[x]);
+  openDlg("Logg inn", `${lev.length ? `<div style="display:grid;gap:8px;margin-bottom:12px">${lev.map(x => `<button class="btn" type="button" data-oauth="${x}" style="display:flex;gap:10px;align-items:center;justify-content:center;padding:10px">${oauthIkon[x]} Logg inn med ${OAUTH[x].navn}</button>`).join("")}</div>
+    <p class="note" style="text-align:center;margin:0 0 8px">eller få en innloggingslenke på e-post</p>` : ""}<form class="form" id="lf"><label class="wide">E-postadresse<input type="email" id="lf-epost" required autocomplete="email" placeholder="navn@eksempel.no"></label></form>
+    <p class="note">Du får en innloggingslenke på e-post. Alle kan se banedagboken uten å logge inn. For å kunne endre må e-postadressen være registrert av admin${lev.length ? ", og det gjelder også ved innlogging med " + lev.map(x => OAUTH[x].navn).join(" eller ") : ""}.</p><p id="lf-msg" class="note"></p>`,
     `<span class="spacer"></span><button class="btn primary" id="lfGo">Send innloggingslenke</button>`);
   const go = async () => {
     const email = $("#lf-epost").value.trim(); if (!email || !$("#lf-epost").checkValidity()) { $("#lf-epost").focus(); return; }
@@ -3378,6 +3386,11 @@ function openLogin() {
     else $("#lf-msg").innerHTML = `<span class="ok">Lenken er sendt til ${esc(email)}. Åpne den på denne enheten for å logge inn.</span>`;
   };
   $("#lfGo").onclick = go; $("#lf").onsubmit = e => { e.preventDefault(); go(); };
+  $$("#dlgBody [data-oauth]").forEach(b => b.onclick = async () => {
+    const o = OAUTH[b.dataset.oauth]; b.disabled = true;
+    const { error } = await SB.auth.signInWithOAuth({ provider: o.provider, options: { ...o.opts, redirectTo: location.origin + location.pathname } });
+    if (error) { $("#lf-msg").innerHTML = `<span class="err">Innlogging med ${o.navn} virker ikke ennå (${esc(error.message)}). Bruk lenke på e-post.</span>`; b.disabled = false; }
+  });
   setTimeout(() => $("#lf-epost")?.focus(), 30);
 }
 async function refreshRole(session) {

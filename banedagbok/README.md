@@ -215,6 +215,36 @@ Regn med rundt en halvtime. Du trenger en Supabase-konto (gratis), tilgang til d
 1. Gå til **Authentication → URL Configuration**. Sett **Site URL** til adressen siden skal ligge på (se steg 4), og legg samme adresse inn under **Redirect URLs**.
 2. **Viktig:** Supabase sin innebygde e-posttjeneste sender bare til medlemmer av Supabase-prosjektet, og bare noen få e-poster i timen. Før trenerne kan logge inn, må du koble til en egen e-posttjeneste under **Authentication → Emails → SMTP Settings**. Brevo og Resend har gratisnivå som holder for en klubb.
 
+### Innlogging med Google og Microsoft (valgfritt)
+
+Brukerne kan logge inn med Google- eller Microsoft-kontoen sin i stedet for lenke på e-post. Begge deler er gratis. Brukeren kjennes igjen på e-postadressen, så kontoen må ha samme e-post som admin har registrert under Brukere (eller dommeransvarlig under Dommere). Innlogging med lenke på e-post virker fortsatt for alle.
+
+Menyene hos Google og Microsoft endres av og til. Navnene under var riktige da veiledningen ble skrevet.
+
+**Felles:** i Supabase, åpne **Authentication → Providers** og velg leverandøren. Kopier **Callback URL** (`https://<prosjekt>.supabase.co/auth/v1/callback`). Den trengs hos Google og Microsoft.
+
+**Google**
+
+1. Gå til [console.cloud.google.com](https://console.cloud.google.com) og opprett et prosjekt, for eksempel «Banedagbok».
+2. **APIs & Services → OAuth consent screen** (heter også «Google Auth Platform»): velg **External**, fyll inn navn på appen og en e-post for brukerstøtte. Publiser appen («In production»), ellers kan bare testbrukere logge inn.
+3. **Credentials → Create credentials → OAuth client ID**: velg **Web application**. Under **Authorized redirect URIs** limer du inn Callback URL fra Supabase. Kopier **Client ID** og **Client secret**.
+4. I Supabase, under **Providers → Google**: slå på, lim inn Client ID og Client secret, og lagre.
+
+**Microsoft**
+
+1. Gå til [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID → App registrations → New registration**.
+2. Gi appen et navn. Under **Supported account types** velger du «Accounts in any organizational directory and personal Microsoft accounts», så både jobbkontoer og private Outlook- og Hotmail-kontoer virker. Under **Redirect URI** velger du **Web** og limer inn Callback URL fra Supabase.
+3. Kopier **Application (client) ID**. Gå til **Certificates & secrets → New client secret** og kopier **Value**. Hemmeligheten utløper, maks etter 24 måneder. Legg inn en påminnelse om å lage en ny.
+4. I Supabase, under **Providers → Azure**: slå på, lim inn client ID og secret, og lagre. **Azure Tenant URL** kan stå tom.
+
+**Til slutt:** slå på knappene i `banedagbok/index.html` (se steg 4):
+
+```js
+window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "…", anonKey: "…", innlogging: ["google", "microsoft"] };
+```
+
+Ta bare med leverandørene som er satt opp. Knappene «Logg inn med Google» og «Logg inn med Microsoft» vises da i innloggingsvinduet. Facebook og Apple er ikke lagt inn. Facebook-kontoer har ikke alltid e-post, og med Apple kan brukeren skjule e-postadressen sin, og da kjennes ikke brukeren igjen.
+
 ### 3. Automatisk henting fra fotball.no
 
 1. I Supabase: åpne **Project Settings → API** og kopier **Project URL** og **service_role**-nøkkelen.
@@ -239,10 +269,10 @@ Skriptet kan kjøres lokalt med `pip install openpyxl` og `python scripts/hent_k
 
 1. Åpne `banedagbok/index.html` og fyll inn øverst i skriptet:
    ```js
-   window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "https://<prosjekt>.supabase.co", anonKey: "<anon public-nøkkel>" };
+   window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "https://<prosjekt>.supabase.co", anonKey: "<anon public-nøkkel>", innlogging: [] };
    ```
    Bruk **anon public**-nøkkelen fra Project Settings → API. Den er laget for å ligge i nettsider, siden tilgangsreglene i databasen bestemmer hva den får gjøre.
-2. Publiser mappa `banedagbok` med Netlify eller Cloudflare Pages. Repoet er privat, og GitHub Pages krever da betalt GitHub-konto.
+2. Publiser mappa `banedagbok` med Netlify eller Cloudflare Pages. Er repoet offentlig, går det også gratis med GitHub Pages. For et privat repo krever GitHub Pages betalt GitHub-konto.
    - **Netlify:** Add new site → Import from Git → velg repoet. Build command: tom. Publish directory: `banedagbok`.
    - **Cloudflare Pages:** Create → Pages → Connect to Git. Build command: tom. Build output directory: `banedagbok`.
 3. Egen adresse som `baner.klubbnavn.no` settes opp hos Netlify eller Cloudflare. Husk å oppdatere Site URL i Supabase (steg 2).
