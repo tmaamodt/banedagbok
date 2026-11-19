@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personvern · Banedagbok</title>
+<style>
+  :root { --bg: #eef3ee; --surface: #fff; --ink: #16231a; --muted: #5a695e; --line: #d3dcd4; --pitch: #2b7a47 }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e1611; --surface: #152019; --ink: #e2ebe4; --muted: #92a397; --line: #2a3a2f; --pitch: #58b577 } }
+  * { box-sizing: border-box }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px }
+  .kort { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; display: grid; gap: 4px }
+  small.merke { color: var(--pitch); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 13px }
+  h1 { font-size: 30px; margin: 4px 0 8px; line-height: 1.1 }
+  h2 { font-size: 19px; margin: 18px 0 4px }
+  p, ul { margin: 6px 0 }
+  ul { padding-left: 20px }
+  li { margin: 3px 0 }
+  .note { color: var(--muted); font-size: 14px }
+  a { color: var(--pitch) }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; margin: 6px 0 }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line) }
+  th { font-size: 13px; color: var(--muted); font-weight: 600 }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">← Tilbake til banedagboken</a></p>
+  <div class="kort">
+    <small class="merke">Banedagbok</small>
+    <h1>Personvern</h1>
+    <p>Banedagboken viser kamper, treninger og bookinger på klubbens baner. Alle kan se banedagboken uten å logge inn, og da lagres ingenting om deg.</p>
+
+    <h2>Innlogging: navn og e-post</h2>
+    <p>Trenere, dommere og administratorer logger inn med e-postadressen sin. For disse lagrer vi bare:</p>
+    <ul>
+      <li><b>Navn</b>, så andre i klubben ser hvem som har gjort hva.</li>
+      <li><b>E-postadresse</b>, som brukes til innlogging og til å kjenne deg igjen.</li>
+      <li><b>Rolle og lag</b>, som bestemmer hva du får endre.</li>
+    </ul>
+    <p>Logger du inn med Google eller Microsoft, får vi bare e-postadressen din derfra. Vi ser aldri passordet ditt.</p>
+
+    <h2>Dommere</h2>
+    <p>Lokale dommere som klubben setter opp på kamper, er registrert med navn, telefon, e-post, fødselsår og hvilke kamper de kan dømme. Dette ser bare dommeransvarlig, administratorer og dommeren selv. Alle andre ser bare fornavn og første bokstav i etternavnet, for eksempel «Ola N.».</p>
+    <p>Dommere satt opp av kretsen vises med fullt navn, slik det står åpent på fotball.no.</p>
+
+    <h2>Det vi ikke gjør</h2>
+    <ul>
+      <li>Vi bruker ikke informasjonskapsler (cookies) til sporing eller reklame, og har ingen statistikkverktøy.</li>
+      <li>Vi deler ikke opplysningene med andre, og bruker dem ikke til noe annet enn banedagboken.</li>
+      <li>Banedagboken skal ikke inneholde opplysninger om spillere.</li>
+    </ul>
+
+    <h2>Hvor opplysningene ligger</h2>
+    <table>
+      <tr><th>Tjeneste</th><th>Hva</th></tr>
+      <tr><td>Supabase</td><td>Databasen og innloggingen. Her ligger navn, e-post og dommerregisteret.</td></tr>
+      <tr><td>GitHub Pages</td><td>Selve nettsiden.</td></tr>
+      <tr><td>Google Fonts, cdnjs og jsDelivr</td><td>Skrifttyper og programbiblioteker som nettsiden lastes med. Nettleseren din henter dem direkte, og disse tjenestene ser da IP-adressen din, slik det er når du besøker de fleste nettsider.</td></tr>
+    </table>
+    <p>I nettleseren din lagres innloggingen og enkle valg, som hvilken bane du så på sist. Dette forsvinner når du logger ut eller tømmer nettleserdata.</p>
+
+    <h2>Dine rettigheter</h2>
+    <p>Du kan be om å få se, rette eller slette opplysningene vi har om deg. Ta kontakt med administratoren for banedagboken i klubben. Når du ikke lenger skal ha tilgang, sletter vi brukeren din.</p>
+    <p class="note">Sist oppdatert: november 2026.</p>
+  </div>
+</main>
+</body>
+</html>
