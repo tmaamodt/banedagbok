@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       fra:
-        description: "Fra dato (YYYY-MM-DD). Tom = 60 dager tilbake"
+        description: "Fra dato, f.eks. 2026-01-01 eller 01.01.2026. Tom = 60 dager tilbake"
         required: false
       til:
-        description: "Til dato (YYYY-MM-DD). Tom = 365 dager fram"
+        description: "Til dato, f.eks. 2026-12-31 eller 31.12.2026. Tom = 365 dager fram"
         required: false
       torrkjoring:
         description: "Bare vis endringer, ikke lagre"
@@ -26,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install openpyxl==3.1.5
