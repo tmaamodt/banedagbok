@@ -1,0 +1,277 @@
+:root {
+  --bakgrunn: #14171c;
+  --gulv: #1c2027;
+  --rutenett: rgba(255, 255, 255, 0.05);
+  --flate: #262b34;
+  --flate-2: #313744;
+  --kant: #3c4352;
+  --tekst: #f2f4f7;
+  --tekst-dempet: #9aa3b2;
+  --gronn: #2fb463;
+  --gul: #f2c230;
+  --rod: #e5484d;
+  --ledig: #4a505c;
+  --ledig-tekst: #b7bdc8;
+  --primar: #3b82f6;
+  --fare: #d13a40;
+  --radius: 14px;
+  --topp-hoyde: 64px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bakgrunn);
+  color: var(--tekst);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+button { font: inherit; color: inherit; }
+input { -webkit-user-select: text; user-select: text; }
+
+/* ---------- Topplinje ---------- */
+header {
+  flex: 0 0 var(--topp-hoyde);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  background: var(--bakgrunn);
+  border-bottom: 1px solid var(--kant);
+}
+header[hidden] { display: none; }
+#topp-rediger { background: #2a2414; border-bottom-color: #6b5718; }
+
+.topp-venstre, .topp-hoyre { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.klokke { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
+.oppsummering { color: var(--tekst-dempet); font-size: 17px; white-space: nowrap; }
+.oppsummering b { color: var(--tekst); }
+.oppsummering .tall-rod { color: var(--rod); }
+.hint { color: #d8c98f; font-size: 15px; }
+.vaken { color: var(--gul); font-size: 20px; opacity: 0.7; }
+
+.forklaring { display: flex; gap: 8px; }
+.forklaring span {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 15px; color: var(--tekst-dempet); white-space: nowrap;
+}
+.forklaring i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+
+/* ---------- Knapper ---------- */
+.knapp {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid var(--kant);
+  background: var(--flate);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.knapp:active { filter: brightness(1.25); }
+.knapp:disabled { opacity: 0.4; }
+.knapp-primar { background: var(--primar); border-color: var(--primar); color: #fff; }
+.knapp-fare { background: var(--fare); border-color: var(--fare); color: #fff; }
+.knapp-dempet { background: transparent; color: var(--tekst-dempet); }
+
+/* ---------- Gulv / plantegning ---------- */
+#gulv {
+  position: relative;
+  flex: 1 1 auto;
+  margin: 10px;
+  border-radius: 18px;
+  background: var(--gulv);
+  overflow: hidden;
+  touch-action: none;
+}
+body.rediger #gulv {
+  background-color: var(--gulv);
+  background-image:
+    linear-gradient(var(--rutenett) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rutenett) 1px, transparent 1px);
+  background-size: 5% 5%;
+  outline: 2px dashed #6b5718;
+  outline-offset: -2px;
+}
+
+.bord {
+  --s: 100px;
+  position: absolute;
+  width: var(--s);
+  height: var(--s);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 3px solid rgba(0, 0, 0, 0.25);
+  border-radius: 16%;
+  background: var(--ledig);
+  color: var(--ledig-tekst);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.12s;
+  touch-action: none;
+}
+.bord.rund { border-radius: 50%; }
+.bord .navn { font-size: calc(var(--s) * 0.30); font-weight: 800; line-height: 1; }
+.bord .tid { font-size: calc(var(--s) * 0.20); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.bord .tid small { font-size: 0.7em; font-weight: 600; opacity: 0.85; }
+
+.bord.gronn { background: var(--gronn); color: #04210f; }
+.bord.gul { background: var(--gul); color: #2b2100; }
+.bord.rod { background: var(--rod); color: #fff; animation: puls 2s ease-in-out infinite; }
+.bord.ledig .tid { font-size: calc(var(--s) * 0.16); font-weight: 600; opacity: 0.8; }
+
+.bord.trykket { transform: translate(-50%, -50%) scale(0.93); }
+.bord.blink { animation: blink 0.5s ease-out; }
+
+@keyframes puls {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.0), 0 6px 16px rgba(0,0,0,.35); }
+  50% { box-shadow: 0 0 0 10px rgba(229, 72, 77, 0.35), 0 6px 16px rgba(0,0,0,.35); }
+}
+@keyframes blink {
+  0% { filter: brightness(1.8); }
+  100% { filter: brightness(1); }
+}
+
+body.rediger .bord { background: var(--flate-2); color: var(--tekst); animation: none; border-color: var(--kant); }
+body.rediger .bord.valgt { border-color: var(--primar); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.45); }
+body.rediger .bord.drar { opacity: 0.85; z-index: 5; transition: none; }
+
+.tomt {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--tekst-dempet); font-size: 20px; text-align: center; padding: 24px;
+}
+
+/* ---------- Bordpanel (redigering) ---------- */
+.bordpanel {
+  position: fixed;
+  right: calc(20px + env(safe-area-inset-right));
+  top: calc(var(--topp-hoyde) + 24px + env(safe-area-inset-top));
+  width: 300px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--flate);
+  border: 1px solid var(--kant);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 20;
+}
+.bordpanel[hidden] { display: none; }
+.bordpanel.venstre { right: auto; left: calc(20px + env(safe-area-inset-left)); }
+.felt { display: flex; flex-direction: column; gap: 8px; }
+.felt > span { font-size: 14px; color: var(--tekst-dempet); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.felt input {
+  height: 52px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid var(--kant); background: var(--bakgrunn); color: var(--tekst);
+  font-size: 24px; font-weight: 700;
+}
+.valg { display: flex; gap: 6px; }
+.valg button {
+  flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--kant);
+  background: var(--bakgrunn); font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.valg button.aktiv { background: var(--primar); border-color: var(--primar); color: #fff; }
+.panel-knapper { display: flex; gap: 10px; }
+.panel-knapper .knapp { flex: 1; }
+
+/* ---------- Dialog ---------- */
+.dialog-bakgrunn {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.dialog-bakgrunn[hidden] { display: none; }
+.dialog {
+  width: min(460px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--flate);
+  border: 1px solid var(--kant);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.dialog h2 { margin: 0 0 6px; font-size: 26px; }
+.dialog p { margin: 0 0 16px; color: var(--tekst-dempet); font-size: 17px; line-height: 1.4; }
+.dialog .knapperad { display: flex; flex-direction: column; gap: 10px; }
+.dialog .knapperad .knapp { min-height: 60px; font-size: 20px; width: 100%; }
+.dialog .knapperad.side { flex-direction: row; }
+.dialog .knapperad.side .knapp { flex: 1; }
+
+/* PIN-tastatur */
+.pin-prikker { display: flex; justify-content: center; gap: 16px; margin: 8px 0 18px; }
+.pin-prikker i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--tekst-dempet); }
+.pin-prikker i.fylt { background: var(--tekst); border-color: var(--tekst); }
+.pin-prikker.feil { animation: rist 0.4s; }
+.tastatur { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tastatur button {
+  height: 68px; border-radius: 14px; border: 1px solid var(--kant);
+  background: var(--bakgrunn); font-size: 28px; font-weight: 600; cursor: pointer;
+}
+.tastatur button:active { background: var(--flate-2); }
+@keyframes rist {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+/* Innstillinger */
+.rad {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--kant);
+}
+.rad:last-of-type { border-bottom: none; }
+.rad .etikett { font-size: 18px; font-weight: 600; }
+.rad .etikett small { display: block; color: var(--tekst-dempet); font-weight: 400; font-size: 14px; margin-top: 2px; }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper button { width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--kant); background: var(--bakgrunn); font-size: 26px; cursor: pointer; }
+.stepper output { min-width: 64px; text-align: center; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fargeprikk { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+/* ---------- Melding (angre) ---------- */
+.melding {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 10px 10px 20px;
+  border-radius: 16px;
+  background: #f2f4f7; color: #14171c;
+  font-size: 18px; font-weight: 600;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  z-index: 40;
+}
+.melding[hidden] { display: none; }
+.melding .knapp { background: #14171c; color: #fff; border: none; }
+
+@media (max-width: 900px) {
+  .forklaring, .hint { display: none; }
+}

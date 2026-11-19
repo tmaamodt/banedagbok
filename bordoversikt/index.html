@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Bordoversikt</title>
+<meta name="description" content="Oversikt over når hvert bord sist fikk besøk av en kelner.">
+<meta name="theme-color" content="#14171c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bord">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="ikoner/ikon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="ikoner/apple-touch-icon.png">
+<link rel="stylesheet" href="stil.css">
+</head>
+<body>
+
+<header id="topp">
+  <div class="topp-venstre">
+    <span id="klokke" class="klokke">--:--</span>
+    <span id="oppsummering" class="oppsummering"></span>
+  </div>
+  <div id="forklaring" class="forklaring" aria-label="Fargeforklaring"></div>
+  <div class="topp-hoyre">
+    <span id="vaken" class="vaken" title="Skjermen holdes våken" hidden>☀︎</span>
+    <button id="knapp-rediger" class="knapp knapp-dempet" type="button">Rediger</button>
+  </div>
+</header>
+
+<header id="topp-rediger" hidden>
+  <div class="topp-venstre"><strong>Redigeringsmodus</strong>
+    <span class="hint">Dra bordene på plass. Trykk på et bord for å endre det.</span></div>
+  <div class="topp-hoyre">
+    <button id="knapp-nytt-bord" class="knapp" type="button">＋ Nytt bord</button>
+    <button id="knapp-innstillinger" class="knapp" type="button">Innstillinger</button>
+    <button id="knapp-ferdig" class="knapp knapp-primar" type="button">Ferdig</button>
+  </div>
+</header>
+
+<main id="gulv" aria-label="Plantegning"></main>
+
+<!-- Panel for valgt bord i redigeringsmodus -->
+<aside id="bordpanel" class="bordpanel" hidden>
+  <label class="felt">
+    <span>Navn / nummer</span>
+    <input id="bord-navn" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false">
+  </label>
+  <div class="felt">
+    <span>Form</span>
+    <div class="valg" id="bord-form">
+      <button type="button" data-verdi="rund">● Rundt</button>
+      <button type="button" data-verdi="firkant">■ Firkantet</button>
+    </div>
+  </div>
+  <div class="felt">
+    <span>Størrelse</span>
+    <div class="valg" id="bord-storrelse">
+      <button type="button" data-verdi="S">Liten</button>
+      <button type="button" data-verdi="M">Vanlig</button>
+      <button type="button" data-verdi="L">Stor</button>
+    </div>
+  </div>
+  <div class="panel-knapper">
+    <button id="bord-slett" class="knapp knapp-fare" type="button">Fjern bord</button>
+    <button id="bord-lukk" class="knapp" type="button">Lukk</button>
+  </div>
+</aside>
+
+<!-- Felles dialog -->
+<div id="dialog-bakgrunn" class="dialog-bakgrunn" hidden>
+  <div id="dialog" class="dialog" role="dialog" aria-modal="true"></div>
+</div>
+
+<div id="melding" class="melding" hidden>
+  <span id="melding-tekst"></span>
+  <button id="melding-angre" class="knapp" type="button">Angre</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
