@@ -161,8 +161,8 @@ Trenere knyttes til ett eller flere lag under **Brukere**. Laglista vedlikeholde
 
 **Lokale dommere:** har kampen ingen dommer fra kretsen, kan dommeransvarlig (eller admin) sette opp en lokal dommer. Det gjøres på fanen **Dommere**, eller rett i kampvinduet.
 
-- **Dommerregisteret:** navn, telefon, e-post, fødselsår, hvilke kamptyper dommeren kan dømme (5er, 7er, 9er, 11er) og kompetanse (klubbdommer, kretsdommer). Dommere kan merkes som ikke aktive.
-- **Kamper og dommere:** hjemmekamper og treningskamper på egne anlegg for valgt periode, med valg av lokal dommer. Lista viser bare aktive dommere som kan dømme kamptypen. Det kommer varsel hvis samme dommer er satt opp på to kamper samtidig.
+- **Dommerregisteret:** navn, telefon, e-post, fødselsår, hvilke kamptyper dommeren kan dømme (5er, 7er, 9er, 11er) og kompetanse (klubbdommer, kretsdommer). Med avkrysningen «Aktiv» i lista kan en dommer settes som ikke aktiv uten å slettes. Ikke aktive dommere kan ikke settes opp på kamper. Er dommeren allerede satt opp på kommende kamper, får du beskjed, og kampene merkes i lista.
+- **Kamper og dommere:** hjemmekamper og treningskamper på egne anlegg for valgt periode, med valg av lokal dommer. Lista viser bare aktive dommere som kan dømme kamptypen. Samme dommer kan ikke settes opp på to kamper samtidig. Kamptiden regnes fra avspark til slutt, uten kvarteret banen er holdt av før, så to kamper rett etter hverandre går fint (for eksempel 7er kl. 17:00 på 75 minutter og ny kamp kl. 18:15). Dommere som er opptatt, står som «opptatt» og kan ikke velges.
 
 **Personvern:** navn, kontaktinfo og fødselsår ser bare dommeransvarlig og admin. Alle andre ser bare fornavn og første bokstav i etternavnet på lokale dommere, for eksempel «Ola N.». Dommere fra kretsen vises med fullt navn. Databasen stopper andre fra å lese dommerregisteret.
 

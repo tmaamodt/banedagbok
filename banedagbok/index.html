@@ -546,7 +546,7 @@ details.lagvelger .opts label { display: flex; gap: 6px; align-items: center; fo
           <label class="check" style="grid-column:1/-1"><input type="checkbox" id="df-aktiv" checked> Aktiv (kan settes opp på kamper)</label>
           <div class="bar" style="grid-column:1/-1"><button class="btn primary" type="submit" id="df-lagre">Lagre dommer</button><button class="btn ghost" type="button" id="df-avbryt">Avbryt</button><button class="btn danger" type="button" id="df-slett" hidden>Slett dommer</button><span class="note" id="df-msg"></span></div>
         </form>
-        <div class="tablewrap"><table><thead><tr><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th>Kompetanse</th><th class="num">Oppdrag</th></tr></thead><tbody id="dList"></tbody></table></div>
+        <div class="tablewrap"><table><thead><tr><th>Aktiv</th><th>Navn</th><th>Vises som</th><th>Kontakt</th><th>Født</th><th>Kan dømme</th><th>Kompetanse</th><th class="num">Oppdrag</th></tr></thead><tbody id="dList"></tbody></table></div>
       </div>
       <div class="panel" style="display:grid;gap:12px;min-width:0;align-content:start">
         <div class="bar"><h2>Kamper og dommere</h2><span class="spacer"></span>
@@ -1513,10 +1513,24 @@ function dommerFor(id, k) {
   const o = S.dommeroppdrag[id]; if (o) return { lokal: true, tekst: o.navn, dommerId: o.dommerId };
   return null;
 }
+// Kamptiden for dommeren: fra avspark til slutt, uten kvarteret banen er holdt av før
+function dommerTid(k) { const kick = toMin(k.tid); return kick == null ? null : { d: k.dato, s: kick, e: kick + kampVarighet(k) }; }
+// Annen kamp dommeren allerede dømmer samtidig med kampen kampId (eller null)
+function dommerOpptatt(dommerId, kampId) {
+  const k = S.kamper[kampId], t = k && dommerTid(k); if (!t) return null;
+  for (const [kid, o] of Object.entries(S.dommeroppdrag)) {
+    if (kid === kampId || o.dommerId !== dommerId) continue;
+    const k2 = S.kamper[kid], t2 = k2 && dommerTid(k2);
+    if (t2 && t2.d === t.d && t.s < t2.e && t2.s < t.e) return k2;
+  }
+  return null;
+}
 function dommerValg(id, k) {
   const typ = kampType(k), o = S.dommeroppdrag[id];
   const kan = Object.entries(S.dommere).filter(([did, d]) => did === o?.dommerId || (d.aktiv !== false && (d.kamptyper || []).includes(typ))).sort(([, x], [, y]) => x.navn.localeCompare(y.navn, "nb"));
-  return `<select data-dommer="${esc(id)}" aria-label="Lokal dommer"><option value="">${o ? "Fjern dommer" : "Velg lokal dommer …"}</option>${kan.map(([did, d]) => `<option value="${esc(did)}"${did === o?.dommerId ? " selected" : ""}>${esc(d.navn)}${d.fodselsar ? ` (${d.fodselsar})` : ""}${(d.kompetanse || []).includes("kretsdommer") ? " · kretsdommer" : (d.kompetanse || []).includes("klubbdommer") ? " · klubbdommer" : ""}</option>`).join("")}</select>`;
+  return `<select data-dommer="${esc(id)}" aria-label="Lokal dommer"><option value="">${o ? "Fjern dommer" : "Velg lokal dommer …"}</option>${kan.map(([did, d]) => {
+    const opp = did !== o?.dommerId && dommerOpptatt(did, id), komp = (d.kompetanse || []).includes("kretsdommer") ? " · kretsdommer" : (d.kompetanse || []).includes("klubbdommer") ? " · klubbdommer" : "";
+    return `<option value="${esc(did)}"${did === o?.dommerId ? " selected" : ""}${opp ? " disabled" : ""}>${esc(d.navn)}${d.fodselsar ? ` (${d.fodselsar})` : ""}${komp}${opp ? ` – opptatt ${esc(opp.tid)}` : ""}${d.aktiv === false ? " – ikke aktiv" : ""}</option>`; }).join("")}</select>`;
 }
 function dommerSeksjon(id, k) {
   const d = dommerFor(id, k);
@@ -1526,6 +1540,9 @@ function dommerSeksjon(id, k) {
 async function settDommer(kampId, dommerId) {
   if (!dommerId) { await S.backend.del("dommeroppdrag", kampId); flash("Dommeren er fjernet fra kampen."); return; }
   const d = S.dommere[dommerId]; if (!d) return;
+  if (d.aktiv === false) { flash(`${esc(d.navn)} er ikke aktiv og kan ikke settes opp.`); return; }
+  const opp = dommerOpptatt(dommerId, kampId);
+  if (opp) { flash(`${esc(d.navn)} dømmer allerede ${esc((opp.hjemmelag || "").trim())} – ${esc((opp.bortelag || "").trim())} kl. ${esc(opp.tid)}.`); return; }
   await S.backend.put("dommeroppdrag", kampId, { kampId, dommerId, navn: kortNavn(d.navn), tildelt: new Date().toISOString() });
   flash(`${esc(kortNavn(d.navn))} er satt opp som dommer.`);
 }
@@ -1544,19 +1561,18 @@ function renderDommere() {
   const idag = ymd(new Date()), oppdrag = {};
   for (const [kid, o] of Object.entries(S.dommeroppdrag)) if ((S.kamper[kid]?.dato || "") >= idag) oppdrag[o.dommerId] = (oppdrag[o.dommerId] || 0) + 1;
   const ds = Object.entries(S.dommere).sort(([, x], [, y]) => (x.aktiv === false) - (y.aktiv === false) || x.navn.localeCompare(y.navn, "nb"));
-  $("#dList").innerHTML = ds.length ? ds.map(([id, d]) => `<tr class="click${d.aktiv === false ? " muted" : ""}" data-did="${esc(id)}"><td><b>${esc(d.navn)}</b>${d.aktiv === false ? ` <span class="muted">(ikke aktiv)</span>` : ""}</td><td>${esc(kortNavn(d.navn))}</td>
+  $("#dList").innerHTML = ds.length ? ds.map(([id, d]) => `<tr class="click${d.aktiv === false ? " muted" : ""}" data-did="${esc(id)}"><td><input type="checkbox" data-aktiv="${esc(id)}"${d.aktiv !== false ? " checked" : ""} aria-label="${esc(d.navn)} er aktiv"></td><td><b>${esc(d.navn)}</b>${d.aktiv === false ? ` <span class="muted">(ikke aktiv)</span>` : ""}</td><td>${esc(kortNavn(d.navn))}</td>
       <td>${[d.telefon, d.epost].filter(Boolean).map(esc).join("<br>")}</td><td class="num">${esc(d.fodselsar || "")}</td><td>${(d.kamptyper || []).map(t => t + "er").join(", ")}</td><td>${(d.kompetanse || []).map(x => KOMPETANSE[x] || x).join(", ")}</td><td class="num">${oppdrag[id] || ""}</td></tr>`).join("")
-    : `<tr><td colspan="7" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
+    : `<tr><td colspan="8" class="muted">Ingen dommere ennå. Trykk «+ Ny dommer».</td></tr>`;
   // kamper
   const bare = $("#dkMangler").checked, liste = dommerKamper(+$("#dkPeriode").value).filter(([id, k]) => !bare || !dommerFor(id, k) || S.dommeroppdrag[id]);
-  // samme dommer på to kamper samtidig
-  const tid = (id) => { const k = S.kamper[id], w = kampVindu(k); return w && { d: k.dato, s: w.start, e: w.end }; };
-  const dobbel = new Set(); const per = {}; for (const [kid, o] of Object.entries(S.dommeroppdrag)) (per[o.dommerId] ||= []).push(kid);
-  for (const ks of Object.values(per)) for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) { const a = tid(ks[i]), b = tid(ks[j]); if (a && b && a.d === b.d && a.s < b.e && b.s < a.e) { dobbel.add(ks[i]); dobbel.add(ks[j]); } }
+  // oppdrag satt opp før reglene: dommer på to kamper samtidig, eller dommer som ikke er aktiv
+  const varsel = id => { const o = S.dommeroppdrag[id]; if (!o) return ""; const d = S.dommere[o.dommerId];
+    return d?.aktiv === false ? "Dommeren er ikke aktiv. Velg en annen." : dommerOpptatt(o.dommerId, id) ? "Dommeren har en annen kamp samtidig" : ""; };
   $("#dkList").innerHTML = liste.length ? liste.map(([id, k]) => { const d = dommerFor(id, k), a = anlegg(k.anleggId);
     return `<div class="dk${d ? "" : " mangler"}"><span class="num">${fmtDate(k.dato)} ${esc(k.tid)}</span>
       <span><b>${esc((k.hjemmelag || "").trim())} – ${esc((k.bortelag || "").trim())}</b><br><span class="muted">${esc(kampType(k))}er · ${esc(delLabel(a, k.delbaneId))}, ${esc(a?.navn || "")}${k.kilde === "treningskamp" ? " · treningskamp" : ""}</span></span>
-      <span class="hvem">${d?.krets ? `<span class="krets">${esc(d.tekst)}</span><br><span class="muted">fra kretsen</span>` : `${dommerValg(id, k)}${dobbel.has(id) ? `<br><span class="warn">Dommeren har en annen kamp samtidig</span>` : ""}`}</span></div>`; }).join("")
+      <span class="hvem">${d?.krets ? `<span class="krets">${esc(d.tekst)}</span><br><span class="muted">fra kretsen</span>` : `${dommerValg(id, k)}${varsel(id) ? `<br><span class="warn">${varsel(id)}</span>` : ""}`}</span></div>`; }).join("")
     : `<p class="note">${bare ? "Alle kampene i perioden har dommer." : "Ingen kamper i perioden."}</p>`;
   kobleDommerValg($("#dkList"));
 }
@@ -1568,7 +1584,18 @@ function initDommere() {
     $$("#df-komp input").forEach(c => { c.checked = (d.kompetanse || []).includes(c.value); }); $("#df-slett").hidden = !id; $("#df-msg").textContent = ""; $("#df-navn").focus(); };
   $("#dNy").onclick = () => vis(null);
   $("#df-avbryt").onclick = () => { f.hidden = true; red = null; };
-  $("#dList").addEventListener("click", e => { const tr = e.target.closest("[data-did]"); if (tr) vis(tr.dataset.did); });
+  $("#dList").addEventListener("click", e => { if (e.target.closest("[data-aktiv]")) return; const tr = e.target.closest("[data-did]"); if (tr) vis(tr.dataset.did); });
+  // aktiv/ikke aktiv rett i lista
+  $("#dList").addEventListener("change", async e => {
+    const c = e.target.closest("[data-aktiv]"); if (!c) return; const id = c.dataset.aktiv, d = S.dommere[id]; if (!d) return;
+    c.disabled = true;
+    try {
+      await S.backend.put("dommere", id, { ...d, aktiv: c.checked });
+      const idag = ymd(new Date()), kommende = Object.entries(S.dommeroppdrag).filter(([kid, o]) => o.dommerId === id && (S.kamper[kid]?.dato || "") >= idag).length;
+      flash(c.checked ? `${esc(d.navn)} er aktiv igjen.` : `${esc(d.navn)} er satt som ikke aktiv.${kommende ? ` Hen er fortsatt satt opp på ${kommende} kommende ${kommende === 1 ? "kamp" : "kamper"}, som er merket i lista.` : ""}`);
+    } catch (er) { flash(esc(errText(er))); }
+    renderDommere();
+  });
   f.onsubmit = async e => {
     e.preventDefault(); const navn = $("#df-navn").value.replace(/\s+/g, " ").trim(), msg = $("#df-msg");
     if (navn.split(" ").length < 2) { msg.innerHTML = `<span class="err">Skriv fornavn og etternavn.</span>`; return; }
