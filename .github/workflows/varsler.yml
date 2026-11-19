@@ -1,0 +1,41 @@
+name: Send varsler på e-post
+
+on:
+  schedule:
+    # Hvert kvarter. GitHub kan forsinke planlagte kjøringer noen minutter.
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      torrkjoring:
+        description: "Bare vis varslene, ikke send"
+        type: boolean
+        default: false
+
+concurrency:
+  group: varsler
+  cancel-in-progress: false
+
+jobs:
+  varsle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Send varsler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          VARSEL_AVSENDER: ${{ secrets.VARSEL_AVSENDER }}
+          NETTSIDE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          TORR: ${{ inputs.torrkjoring }}
+        run: |
+          args=()
+          [ "$TORR" = "true" ] && args+=(--tørrkjøring)
+          python scripts/send_varsler.py "${args[@]}"

@@ -13,6 +13,7 @@
 --               godkjenningslisten har id «u-<Supabase-bruker-id>». En bruker kjennes igjen på Supabase-bruker-id
 --               (data.uids) og på e-postadressene sine (data.epost og data.eposter).
 --   ventende    godkjenningslisten: innlogginger som ikke er koblet til en bruker ennå (id = Supabase-bruker-id)
+--   varsellogg  e-postvarsler som er sendt (skrives av scripts/send_varsler.py), så ingen får samme varsel to ganger
 --   grupper     treningsgrupper: et treningsnavn (f.eks. «G16») koblet til lag på fotball.no
 --   lagkamper   alle kamper for klubbene som bruker banene (også bortekamper), én rad per klubb per måned
 --   gjest       treninger og bookinger på gjesteanlegg, hentet fra Hoopit, én rad per bane per måned
@@ -76,7 +77,8 @@ create table if not exists public.gjest (
 
 create table if not exists public.brukere (
   id         text primary key check (id = lower(id)),   -- e-post (eldre rader) eller «u-<Supabase-bruker-id>»
-  data       jsonb not null,                            -- {epost, eposter: [...], uids: [...], navn, rolle, lag: [...], dommerId}
+  data       jsonb not null,                            -- {epost, eposter: [...], uids: [...], navn, rolle, lag: [...], dommerId,
+                                                        --  varsler: {godkjenning, kampITrening}, varselEpost}
   rolle      text generated always as (data->>'rolle') stored check (rolle in ('admin', 'trener_pluss', 'trener', 'dommeransvarlig', 'dommer')),
   updated_at timestamptz not null default now()
 );
@@ -91,6 +93,13 @@ create index if not exists brukere_eposter on public.brukere using gin ((data->'
 create table if not exists public.ventende (
   id         text primary key,                          -- Supabase-bruker-id (auth.users.id)
   data       jsonb not null,                            -- {uid, epost, navn, leverandor, forst, sist}
+  updated_at timestamptz not null default now()
+);
+
+-- Sendte e-postvarsler. Bare send_varsler.py (service_role) leser og skriver.
+create table if not exists public.varsellogg (
+  id         text primary key,                          -- f.eks. «godkjenning|<id>» eller «kamp|<kamp>|<trening>|<dato>»
+  data       jsonb not null,                            -- {sendt}
   updated_at timestamptz not null default now()
 );
 
@@ -121,7 +130,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag', 'ventende'] loop
+  foreach t in array array['config', 'kamper', 'treninger', 'foresporsler', 'brukere', 'grupper', 'lagkamper', 'gjest', 'dommere', 'dommeroppdrag', 'ventende', 'varsellogg'] loop
     execute format('drop trigger if exists %I_updated_at on public.%I', t, t);
     execute format('create trigger %I_updated_at before update on public.%I for each row execute function public.sett_updated_at()', t, t);
   end loop;
@@ -243,6 +252,25 @@ drop trigger if exists brukere_unik on public.brukere;
 create trigger brukere_unik before insert or update on public.brukere
   for each row execute function public.sjekk_unik_bruker();
 
+-- Innlogget bruker slår egne e-postvarsler av og på. Endrer bare varsler og varselEpost, ikke rolle, lag eller annet.
+create or replace function public.sett_mine_varsler(varsler jsonb, varsel_epost text) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare bid text := public.min_brukerid(); v jsonb := '{}'::jsonb; k text; d jsonb;
+begin
+  if bid = '' then raise exception 'Du er ikke registrert som bruker.' using errcode = '42501'; end if;
+  foreach k in array array['godkjenning', 'kampITrening'] loop
+    if jsonb_typeof(varsler->k) = 'boolean' then v := v || jsonb_build_object(k, varsler->k); end if;
+  end loop;
+  if coalesce(varsel_epost, '') <> '' and varsel_epost !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'Ugyldig e-postadresse for varsler.' using errcode = 'P0001';
+  end if;
+  update public.brukere set data = data || jsonb_build_object('varsler', v, 'varselEpost', lower(coalesce(varsel_epost, '')))
+    where id = bid returning data into d;
+  return d || jsonb_build_object('id', bid);
+end $$;
+revoke all on function public.sett_mine_varsler(jsonb, text) from public;
+grant execute on function public.sett_mine_varsler(jsonb, text) to authenticated;
+
 revoke all on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost(), public.min_brukerid(), public.er_min(jsonb) from public;
 grant execute on function public.min_bruker(), public.min_rolle(), public.er_admin(), public.har_lag(text), public.min_epost(), public.min_brukerid(), public.er_min(jsonb) to anon, authenticated;
 
@@ -314,6 +342,7 @@ alter table public.gjest        enable row level security;
 alter table public.dommere      enable row level security;
 alter table public.dommeroppdrag enable row level security;
 alter table public.ventende     enable row level security;
+alter table public.varsellogg   enable row level security;  -- ingen regler: bare service_role
 
 -- Fjern alle tidligere regler på tabellene, så fila kan kjøres på nytt
 do $$
