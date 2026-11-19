@@ -272,7 +272,9 @@ Skriptet kan kjøres lokalt med `pip install openpyxl` og `python scripts/hent_k
    window.BANEDAGBOK_SUPABASE = window.BANEDAGBOK_SUPABASE || { url: "https://<prosjekt>.supabase.co", anonKey: "<anon public-nøkkel>", innlogging: [] };
    ```
    Bruk **anon public**-nøkkelen fra Project Settings → API. Den er laget for å ligge i nettsider, siden tilgangsreglene i databasen bestemmer hva den får gjøre.
-2. Publiser mappa `banedagbok` med Netlify eller Cloudflare Pages. Er repoet offentlig, går det også gratis med GitHub Pages. For et privat repo krever GitHub Pages betalt GitHub-konto.
+2. **GitHub Pages (anbefalt for offentlig repo):** arbeidsflyten `.github/workflows/publiser-nettsiden.yml` publiserer mappa `banedagbok` hver gang den endres på `main`. Gjør dette én gang: **Settings → Pages → Source: GitHub Actions**. Siden får adressen `https://<bruker>.github.io/<repo>/`.
+
+   Eller publiser mappa `banedagbok` med Netlify eller Cloudflare Pages. Er repoet offentlig, går det også gratis med GitHub Pages. For et privat repo krever GitHub Pages betalt GitHub-konto.
    - **Netlify:** Add new site → Import from Git → velg repoet. Build command: tom. Publish directory: `banedagbok`.
    - **Cloudflare Pages:** Create → Pages → Connect to Git. Build command: tom. Build output directory: `banedagbok`.
 3. Egen adresse som `baner.klubbnavn.no` settes opp hos Netlify eller Cloudflare. Husk å oppdatere Site URL i Supabase (steg 2).
