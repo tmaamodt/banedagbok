@@ -479,6 +479,7 @@ def hent_dommere(db: Supabase, cfg: dict, dry: bool, dager_bak: int = 3, dager_f
                                   f"&dato=lte.{(idag + dt.timedelta(days=dager_fram)).isoformat()}")
     trenger = {r["data"]["kampnr"]: r for r in kamper if r["data"].get("kampnr") and r["data"].get("anleggId") in egne}
     if not trenger:
+        print(f"Dommere: ingen kamper fra fotball.no på egne anlegg fra {dager_bak} dager tilbake til {dager_fram} dager fram.")
         return 0
     lag = set()
     for kl in cfg.get("klubber") or []:
@@ -530,8 +531,23 @@ HOOPIT_API = "https://api.hoopit.io/web/organizations/public-calendars"
 HOOPIT_TYPE = {"training": "trening", "match": "kamp"}
 
 
+HOOPIT_BIT = 183  # Hoopit godtar høyst 368 dager per forespørsel; lengre perioder hentes i biter
+
+
 def hoopit_hendelser(kalender: str, venue: int, fra: dt.date, til: dt.date) -> list[dict]:
     """Hendelser for én bane i Hoopit sin offentlige kalender. Til-datoen tas med."""
+    ut, sett, d = [], set(), fra
+    while d <= til:
+        slutt = min(til, d + dt.timedelta(days=HOOPIT_BIT - 1))
+        for e in hoopit_bit(kalender, venue, d, slutt):
+            nokkel = (e.get("id"), e.get("start"))
+            if nokkel not in sett:
+                sett.add(nokkel); ut.append(e)
+        d = slutt + dt.timedelta(days=1)
+    return ut
+
+
+def hoopit_bit(kalender: str, venue: int, fra: dt.date, til: dt.date) -> list[dict]:
     qs = urllib.parse.urlencode({"from_date": fra.isoformat(), "to_date": (til + dt.timedelta(days=1)).isoformat()})
     req = urllib.request.Request(f"{HOOPIT_API}/{urllib.parse.quote(kalender)}/venues/{int(venue)}/?{qs}",
                                  headers={"User-Agent": USER_AGENT, "Accept": "application/json; version=3"})
@@ -539,6 +555,17 @@ def hoopit_hendelser(kalender: str, venue: int, fra: dt.date, til: dt.date) -> l
         try:
             with urllib.request.urlopen(req, timeout=90) as r:
                 return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if 400 <= e.code < 500 and e.code != 429:  # feil i forespørselen: nytter ikke å prøve igjen
+                try:
+                    melding = json.loads(e.read()).get("title") or ""
+                except Exception:  # noqa: BLE001
+                    melding = ""
+                raise RuntimeError(f"HTTP {e.code} {melding}".strip()) from None
+            if attempt == 3:
+                raise
+            print(f"  Hoopit svarte ikke ({e}), prøver igjen …")
+            time.sleep(2 ** (attempt + 1))
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt == 3:
                 raise
