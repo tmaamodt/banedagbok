@@ -229,7 +229,15 @@ Regn med rundt en halvtime. Du trenger en Supabase-konto (gratis), tilgang til d
 ### 2. Innlogging på e-post
 
 1. Gå til **Authentication → URL Configuration**. Sett **Site URL** til adressen siden skal ligge på (se steg 4), og legg samme adresse inn under **Redirect URLs**.
-2. **Viktig:** Supabase sin innebygde e-posttjeneste sender bare til medlemmer av Supabase-prosjektet, og bare noen få e-poster i timen. Før trenerne kan logge inn, må du koble til en egen e-posttjeneste under **Authentication → Emails → SMTP Settings**. Brevo og Resend har gratisnivå som holder for en klubb.
+2. **Viktig:** Supabase sin innebygde e-posttjeneste sender bare til medlemmer av Supabase-prosjektet, og bare noen få e-poster i timen. Før trenerne kan logge inn med lenke på e-post, må du koble til en egen e-posttjeneste under **Authentication → Emails → SMTP Settings**. Den samme tjenesten brukes til e-postvarslene (se «E-postvarsler» under).
+
+   **Brevo** (gratis, 300 e-poster om dagen) passer for en klubb uten eget domene:
+   1. Lag en konto på [brevo.com](https://www.brevo.com).
+   2. Under **Senders, Domains & Dedicated IPs → Senders**: legg til og bekreft avsenderadressen, for eksempel klubbens e-post.
+   3. Under **SMTP & API → SMTP**: noter **SMTP server** (`smtp-relay.brevo.com`), **Port** (587), **Login**, og lag en **SMTP key**.
+   4. I Supabase, under **SMTP Settings**: slå på **Enable custom SMTP** og fyll inn avsenderadressen, avsendernavn (for eksempel «Banedagbok»), host, port, login (username) og SMTP-nøkkelen (password).
+
+   Med eget domene er det lurt å bekrefte domenet hos Brevo (SPF og DKIM), så e-postene ikke havner i søppelpost.
 
 ### Innlogging med Google og Facebook (valgfritt)
 
@@ -282,6 +290,27 @@ Manuelle bookinger og treninger rører det aldri. Det samme gjelder delbane og v
 
 Skriptet kan kjøres lokalt med `pip install openpyxl` og `python scripts/hent_kamper.py --tørrkjøring`, med de samme to miljøvariablene satt.
 
+### E-postvarsler (valgfritt)
+
+Hver bruker slår på varslene sine selv med knappen **Varsler** øverst til høyre når de er logget inn:
+
+- **Admin:** e-post når noen har logget inn og venter på godkjenning.
+- **Trenere og Trener+:** e-post når en kamp fra fotball.no havner i treningstiden til et av lagene deres. Det gjelder samme bane, tid og del av banen, med de samme reglene som på nettsiden, inkludert kvarteret før kampstart. Avlyste økter og uker uten trening telles ikke med.
+
+Brukeren kan velge en egen adresse for varslene. Ellers brukes e-postadressen brukeren er registrert med. Hvert varsel sendes bare én gang. Varsler som kommer samtidig, samles i én e-post.
+
+Arbeidsflyten `.github/workflows/varsler.yml` kjører `scripts/send_varsler.py` hvert kvarter. Den bruker den samme e-posttjenesten som innloggingen (se steg 2). Legg inn disse hemmelighetene i GitHub (**Settings → Secrets and variables → Actions**), i tillegg til `SUPABASE_URL` og `SUPABASE_SERVICE_ROLE_KEY`:
+
+| Hemmelighet | Eksempel (Brevo) |
+| --- | --- |
+| `SMTP_HOST` | `smtp-relay.brevo.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | Login fra Brevo |
+| `SMTP_PASS` | SMTP-nøkkelen fra Brevo |
+| `VARSEL_AVSENDER` | Avsenderadressen som er bekreftet hos Brevo |
+
+Før hemmelighetene er lagt inn, gjør arbeidsflyten ingenting. Med **Actions → Send varsler på e-post → Run workflow** og «Bare vis varslene» kan du se hvilke varsler som ville blitt sendt, uten å sende dem.
+
 ### 4. Publiser nettsiden
 
 1. Åpne `banedagbok/index.html` og fyll inn øverst i skriptet:
@@ -300,7 +329,8 @@ Skriptet kan kjøres lokalt med `pip install openpyxl` og `python scripts/hent_k
 
 - **Ny admin eller trener:** en admin legger personen til under **Brukere** på nettsiden, og personen logger inn med e-postadressen sin. Personen kan også logge inn først (for eksempel med Facebook), og admin godkjenner fra godkjenningslisten.
 - **Nytt anlegg:** en admin legger det inn under **Baner** på nettsiden, med anleggs-ID fra fotball.no. Neste natt hentes kampene.
-- **Feil i hentingen:** GitHub sender e-post når en kjøring feiler. Loggen ligger under Actions.
+- **Feil i hentingen eller varslene:** GitHub sender e-post når en kjøring feiler. Loggen ligger under Actions.
+- **Planlagte kjøringer stopper:** I offentlige repoer slår GitHub av planlagte arbeidsflyter når repoet ikke har vært endret på 60 dager, og sender e-post om det først. Slå dem på igjen under **Actions**.
 - **Pause i gratisprosjekter:** Supabase pauser gratisprosjekter som ikke er brukt på en uke. Den nattlige hentingen bruker databasen hver dag.
 
 ## Personvern

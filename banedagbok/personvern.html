@@ -39,6 +39,7 @@
       <li><b>E-postadresser</b>, som brukes til innlogging og til å kjenne deg igjen.</li>
       <li><b>En intern id for innloggingen</b>, så du kjennes igjen også hvis kontoen ikke har e-postadresse.</li>
       <li><b>Rolle og lag</b>, som bestemmer hva du får endre.</li>
+      <li><b>Valg av e-postvarsler</b>, hvis du slår dem på, og eventuelt en egen adresse for varslene.</li>
     </ul>
     <p>Logger du inn med Google eller Facebook, får vi navnet og e-postadressen din derfra (hvis kontoen har en). Vi ser aldri passordet ditt, og henter ikke venner, bilder eller annet fra kontoen.</p>
     <p>Logger du inn uten at klubben kjenner deg, havner navnet og e-postadressen på en godkjenningsliste som bare admin ser. Admin godkjenner deg eller sletter deg fra lista.</p>
@@ -58,7 +59,8 @@
     <table>
       <tr><th>Tjeneste</th><th>Hva</th></tr>
       <tr><td>Supabase</td><td>Databasen og innloggingen. Her ligger navn, e-post og dommerregisteret.</td></tr>
-      <tr><td>GitHub Pages</td><td>Selve nettsiden.</td></tr>
+      <tr><td>GitHub Pages og GitHub Actions</td><td>Selve nettsiden, og kjøringene som henter kamper og sender e-postvarsler.</td></tr>
+      <tr><td>E-posttjeneste (Brevo)</td><td>Sender innloggingslenker og varsler. Den får e-postadressen og innholdet i e-posten.</td></tr>
       <tr><td>Google Fonts, cdnjs og jsDelivr</td><td>Skrifttyper og programbiblioteker som nettsiden lastes med. Nettleseren din henter dem direkte, og disse tjenestene ser da IP-adressen din, slik det er når du besøker de fleste nettsider.</td></tr>
     </table>
     <p>I nettleseren din lagres innloggingen og enkle valg, som hvilken bane du så på sist. Dette forsvinner når du logger ut eller tømmer nettleserdata.</p>

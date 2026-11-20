@@ -42,7 +42,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-import openpyxl
 
 FOTBALL_NO = "https://www.fotball.no/footballapi/Calendar/DownloadArenaExcelCalendar"
 USER_AGENT = "banedagbok-kamphenter/1.0"
@@ -147,6 +146,7 @@ def les_kamper(xlsx: bytes) -> list[dict]:
     """Leser fotball.no sin Excel-eksport. Kolonnene finnes via overskriftene, ikke posisjon."""
     if not xlsx.startswith(b"PK"):
         raise ValueError("fotball.no returnerte ikke en Excel-fil")
+    import openpyxl  # lastes bare her, så andre skript kan bruke Supabase-klassen uten openpyxl
     ws = openpyxl.load_workbook(io.BytesIO(xlsx), read_only=True, data_only=True).active
     rows = list(ws.iter_rows(values_only=True))
     hi = next((i for i, r in enumerate(rows) if r and any(str(c or "").strip().lower() == "dato" for c in r)

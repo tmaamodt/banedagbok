@@ -2325,7 +2325,7 @@ function renderUsers() {
   if (!isAdmin()) return;
   const rows = Object.entries(S.brukere).sort(([, x], [, y]) => (x.navn || "").localeCompare(y.navn || "", "nb"));
   $("#uList").innerHTML = rows.length ? rows.map(([id, u]) => `<tr data-uid="${esc(id)}">
-      <td>${esc(u.navn)}</td><td><input type="text" data-uf="eposter" value="${esc(eposterFor(u).join(", "))}" aria-label="E-postadresser for ${esc(u.navn)}" class="mono" style="font-size:13px;min-width:180px"></td>
+      <td><input type="text" data-uf="navn" value="${esc(u.navn || "")}" aria-label="Navn" style="min-width:140px"></td><td><input type="text" data-uf="eposter" value="${esc(eposterFor(u).join(", "))}" aria-label="E-postadresser for ${esc(u.navn)}" class="mono" style="font-size:13px;min-width:180px"></td>
       <td><select data-uf="rolle" aria-label="Rolle">${Object.entries(ROLLER).map(([k, v]) => `<option value="${k}"${u.rolle === k ? " selected" : ""}>${v}</option>`).join("")}</select></td>
       <td>${u.rolle === "admin" ? `<span class="muted">Alle</span>` : lagPicker("lag-" + id, u.lag || [])}</td>
       <td style="white-space:nowrap">${(u.uids || []).length ? `<span title="Koblet til ${u.uids.length} innlogging(er) i Supabase">${u.uids.length}</span> <button class="btn ghost" data-ukoble="${esc(id)}" title="Fjern koblingen til innlogginger. Brukeren kjennes da bare igjen på e-postadressene." aria-label="Fjern kobling til innlogginger for ${esc(u.navn)}">✕</button>` : `<span class="muted">–</span>`}</td>
@@ -2420,7 +2420,12 @@ function initUsers() {
       if (u.rolle === "admin" && e.target.value !== "admin" && !adminCount(id)) { e.target.value = "admin"; setStatus(`<span class="err">Det må finnes minst én admin. Legg til en ny admin først.</span>`); return; }
       u.rolle = e.target.value; if (u.rolle === "admin") u.lag = [];
     } else if (e.target.name === "lag-" + id) u.lag = $$(`input[name="lag-${CSS.escape(id)}"]:checked`, tr).map(i => i.value);
-    else if (e.target.dataset.uf === "eposter") {
+    else if (e.target.dataset.uf === "navn") {
+      const navn = e.target.value.trim().replace(/\s+/g, " ");
+      if (!navn) { setStatus(`<span class="err">Navnet kan ikke være tomt.</span>`); e.target.value = u.navn || ""; return; }
+      if (navn === u.navn) return;
+      u.navn = navn; e.target.value = navn;
+    } else if (e.target.dataset.uf === "eposter") {
       const liste = [...new Set(e.target.value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean))];
       const ugyldig = liste.find(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)), annen = liste.map(x => [x, brukerMedEpost(x)]).find(([, b]) => b && b[0] !== id);
       const feil = ugyldig ? `«${ugyldig}» er ikke en gyldig e-postadresse.` : annen ? `${annen[0]} hører allerede til ${annen[1][1].navn}.`
@@ -3454,8 +3459,39 @@ initMerking(); initDommere(); initMineDommer(); initTrainForm(); initOppsett(); 
 function renderAuth() {
   const el = $("#auth"); if (!SB) { el.innerHTML = ""; return; }
   if (!S.user) { el.innerHTML = `<button class="btn" id="loginBtn">Logg inn</button>`; $("#loginBtn").onclick = openLogin; return; }
-  el.innerHTML = `${esc(S.me?.navn || S.user.email || S.user.user_metadata?.full_name || "Innlogget")} · ${S.me ? ROLLER[S.me.rolle] + (S.me.lag?.length ? " for " + esc(S.me.lag.join(", ")) : "") : "<b>venter på godkjenning</b>"} · <button class="btn ghost" id="logoutBtn">Logg ut</button>`;
+  el.innerHTML = `${esc(S.me?.navn || S.user.email || S.user.user_metadata?.full_name || "Innlogget")} · ${S.me ? ROLLER[S.me.rolle] + (S.me.lag?.length ? " for " + esc(S.me.lag.join(", ")) : "") : "<b>venter på godkjenning</b>"} · ${varselValg().length ? `<button class="btn ghost" id="varselBtn">Varsler</button> · ` : ""}<button class="btn ghost" id="logoutBtn">Logg ut</button>`;
   $("#logoutBtn").onclick = () => SB.auth.signOut();
+  if ($("#varselBtn")) $("#varselBtn").onclick = openVarsler;
+}
+// E-postvarsler som innlogget bruker kan slå på. Sendes av scripts/send_varsler.py (GitHub Actions, hvert kvarter).
+function varselValg() {
+  const v = [];
+  if (isAdmin()) v.push(["godkjenning", "Når noen har logget inn og venter på godkjenning"]);
+  if (isTrainer() && myLag().length) v.push(["kampITrening", `Når en kamp fra fotball.no havner i treningstiden til ${myLag().length > 1 ? "lagene dine" : "laget ditt"} (${myLag().join(", ")})`]);
+  return v;
+}
+function openVarsler() {
+  const valg = varselValg(), v = S.me?.varsler || {}, ep = S.me?.varselEpost || "";
+  openDlg("Varsler på e-post", `<form class="form" id="vf">
+      <div class="wide" style="display:grid;gap:8px">${valg.map(([k, t]) => `<label class="check"><input type="checkbox" data-varsel="${k}"${v[k] ? " checked" : ""}> ${esc(t)}</label>`).join("")}</div>
+      <label class="wide">Send varsler til<input type="email" id="vf-epost" value="${esc(ep)}" placeholder="${esc(S.me?.epost || "navn@eksempel.no")}"></label>
+    </form>
+    <p class="note">Står feltet tomt, brukes ${S.me?.epost ? `<b>${esc(S.me.epost)}</b>` : "e-postadressen din"}${S.me?.epost ? "" : ". Du har ingen e-postadresse registrert, så fyll inn en for å få varsler"}. Varslene sendes innen et kvarter, og hvert varsel kommer bare én gang.</p><p id="vf-msg" class="note"></p>`,
+    `<span class="spacer"></span><button class="btn primary" id="vfGo">Lagre</button>`);
+  const lagre = async () => {
+    const varsler = Object.fromEntries($$("#vf [data-varsel]").map(c => [c.dataset.varsel, c.checked])), epost = $("#vf-epost").value.trim().toLowerCase();
+    if (epost && !$("#vf-epost").checkValidity()) { $("#vf-msg").innerHTML = `<span class="err">Skriv en gyldig e-postadresse.</span>`; return; }
+    if (Object.values(varsler).some(Boolean) && !epost && !S.me?.epost) { $("#vf-msg").innerHTML = `<span class="err">Fyll inn hvor varslene skal sendes.</span>`; return; }
+    $("#vfGo").disabled = true;
+    try {
+      const { data, error } = await SB.rpc("sett_mine_varsler", { varsler, varsel_epost: epost });
+      if (error) throw new Error(error.message);
+      S.me = { ...S.me, varsler: data.varsler, varselEpost: data.varselEpost };
+      $("#vf-msg").innerHTML = `<span class="ok">Lagret.</span>`; setTimeout(() => dlg.close(), 700);
+    } catch (er) { $("#vf-msg").innerHTML = `<span class="err">${esc(er.message || er)}</span>`; }
+    finally { $("#vfGo").disabled = false; }
+  };
+  $("#vfGo").onclick = lagre; $("#vf").onsubmit = e => { e.preventDefault(); lagre(); };
 }
 // Innlogging med Google og Facebook. Knappene vises for leverandørene som er slått på i Supabase
 // (Authentication → Providers). Ukjente innlogginger havner i godkjenningslisten under Brukere.
